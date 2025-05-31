@@ -1,27 +1,54 @@
-import { Injectable } from '@nestjs/common';
-import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
-import { UpdateSupportTicketDto } from './dto/update-support-ticket.dto';
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { CreateSupportTicketDto } from "./dto/create-support-ticket.dto";
+import { UpdateSupportTicketDto } from "./dto/update-support-ticket.dto";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { SupportTicket } from "./entities/support-ticket.entity";
+import { Ride } from "../rides/entities/ride.entity";
 
 @Injectable()
 export class SupportTicketService {
   constructor(
     @InjectRepository(SupportTicket)
-    private readonly ticketRepository: Repository<SupportTicket>
+    private readonly ticketRepository: Repository<SupportTicket>,
+    @InjectRepository(Ride)
+    private readonly rideRepository: Repository<Ride>
   ) {}
 
+
+  
   async create(dto: CreateSupportTicketDto): Promise<SupportTicket> {
-    // Step 1: Save without ticket_number
-    const partialTicket = this.ticketRepository.create(dto);
-    const saved = await this.ticketRepository.save(partialTicket);
+    let ride: Ride | null = null;
 
-    // Step 2: Generate ticket_number using saved.id
-    saved.ticket_number = `TCKT-${saved.id.toString().padStart(5, "0")}`;
+    if (dto.ride_id) {
+      ride = await this.rideRepository.findOneBy({ id: dto.ride_id });
+      if (!ride) throw new NotFoundException("Ride not found");
 
-    // Step 3: Update ticket_number in DB
-    return this.ticketRepository.save(saved);
+      const existingTicket = await this.ticketRepository.findOneBy({
+        ride: { id: dto.ride_id },
+      });
+      if (existingTicket) {
+        throw new BadRequestException("Only one support ticket can be created per ride.");
+      }
+    }
+
+    function generateTicketNumber(): string {
+      const random = Math.floor(1000 + Math.random() * 9000);
+      return `TCKT-${Date.now().toString().slice(-5)}-${random}`;
+    }
+
+    const ticket = this.ticketRepository.create({
+      ticket_number: generateTicketNumber(),
+      user_id: dto.user_id,
+      user_type: dto.user_type,
+      ride:ride??undefined,
+      category: dto.category,
+      status: dto.status,
+      subject: dto.subject,
+      description: dto.description,
+    });
+
+    return this.ticketRepository.save(ticket);
   }
 
   async findAll() {

@@ -9,17 +9,14 @@ export class DriverEarning {
   @ApiProperty({ example: 1 })
   id: number;
 
-  // @Column()
-  // @ApiProperty({ example: 10 })
-  // driver_id: number;
-
   @ManyToOne(() => Driver, (driver) => driver.earnings)
   @JoinColumn({ name: "driver_id" })
   driver: Driver;
 
-  @Column()
-  @ApiProperty({ example: 101 })
-  ride_id: number;
+  @OneToOne(() => Ride)
+  @JoinColumn({ name: "ride_id" })
+  @ApiProperty({ type: () => Ride })
+  ride: Ride;
 
   @Column("decimal")
   @ApiProperty({ example: "120.50" })
@@ -40,10 +37,4 @@ export class DriverEarning {
   @Column({ type: "timestamp", nullable: true })
   @ApiProperty({ example: "2025-05-29T12:00:00Z", required: false })
   processed_at?: Date;
-
-
-
-  @OneToOne(() => Ride)
-  @JoinColumn({ name: "ride_id" })
-  ride: Ride;
 }

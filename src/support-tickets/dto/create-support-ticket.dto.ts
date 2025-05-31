@@ -3,8 +3,9 @@ import { IsNotEmpty, IsOptional, IsString, IsNumber } from "class-validator";
 
 export class CreateSupportTicketDto {
   @ApiProperty({ example: "TCKT-00123" })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
+
   ticket_number: string;
 
   @ApiProperty({ example: 123 })

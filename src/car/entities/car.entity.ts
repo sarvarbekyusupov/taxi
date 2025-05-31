@@ -9,10 +9,13 @@ export class Car {
   id: number;
 
   @ApiProperty({ example: 101 })
-  @ManyToOne(() => Driver, (driver) => driver.cars)
+  @ManyToOne(() => Driver, (driver) => driver.cars, {
+    cascade: ["insert", "update"], // optional: remove if not needed
+    onDelete: "SET NULL", // or 'CASCADE' depending on your logic
+    nullable: true,
+  })
   @JoinColumn({ name: "driver_id" })
   driver: Driver;
-
 
   @ApiProperty({ example: "Toyota" })
   @Column()

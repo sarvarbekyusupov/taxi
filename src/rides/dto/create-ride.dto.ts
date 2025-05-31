@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { RideStatus, PaymentMethod } from "../enums/ride.enums";
+import { PaymentMethod } from "../enums/ride.enums";
 
 export class CreateRideDto {
   @ApiProperty({
@@ -7,6 +7,12 @@ export class CreateRideDto {
     description: "ID of the client requesting the ride",
   })
   client_id: number;
+
+  @ApiProperty({
+    example: 2,
+    description: "ID of the driver accepting the ride",
+  })
+  driver_id: number;
 
   @ApiProperty({
     example: 37.7749,

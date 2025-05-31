@@ -1,45 +1,21 @@
-
 import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { ApiProperty } from "@nestjs/swagger";
 
-// @Entity("otp")
-// export class Otp {
-//   @PrimaryGeneratedColumn()
-//   id: number;
-
-//   @Column()
-//   phone_number: string;
-
-//   @Column({ length: 6 })
-//   code: string;
-
-//   @Column()
-//   user_type: string;
-
-//   @Column()
-//   purpose: string;
-
-//   @Column({ default: false })
-//   is_used: boolean;
-
-//   @Column({ type: "timestamp" })
-//   expires_at: Date;
-
-//   @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
-//   created_at: Date;
-// }
-
-@Entity()
+@Entity("otp")
 export class Otp {
+  @ApiProperty({ description: "Unique identifier for the OTP entry" })
   @PrimaryGeneratedColumn()
   id: number;
 
+  @ApiProperty({ description: "Phone number associated with the OTP" })
   @Column()
   phone_number: string;
 
+  @ApiProperty({ description: "One-time password sent to the user" })
   @Column()
   otp: string;
 
+  @ApiProperty({ description: "Timestamp when the OTP was created" })
   @Column()
   createdAt: Date;
 }
-
