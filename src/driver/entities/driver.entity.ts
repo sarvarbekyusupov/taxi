@@ -71,4 +71,11 @@ export class Driver {
   @Column({ default: true })
   @ApiProperty({ example: true })
   is_active: boolean;
+
+  @Column({ default: false })
+  @ApiProperty({ example: false })
+  is_verified: boolean;
+
+  @Column({ type: "text", nullable: true })
+  refresh_token: string | null;
 }

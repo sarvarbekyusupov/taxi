@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
 import { ApiProperty } from "@nestjs/swagger";
+import { IsOptional } from "class-validator";
 
 @Entity("clients")
 export class Client {
@@ -31,11 +32,11 @@ export class Client {
   @ApiProperty({ example: false })
   is_verified: boolean;
 
-  @Column()
-  @ApiProperty({ example: 123456 })
-  refresh_token: number;
+  @Column({ type: "text", nullable: true })
+  refresh_token: string | null;
 
-  @Column()
-  @ApiProperty({ example: 789012 })
+  @Column({ default: null })
+  @ApiProperty({ example: 7892 })
+  @IsOptional()
   client_otp: number;
 }

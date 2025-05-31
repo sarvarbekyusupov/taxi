@@ -1,9 +1,17 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsString, IsBoolean, IsOptional, IsInt } from "class-validator";
+import {
+  IsString,
+  IsBoolean,
+  IsOptional,
+  IsInt,
+  IsPhoneNumber,
+  IsNotEmpty,
+} from "class-validator";
 
 export class CreateClientDto {
   @ApiProperty({ example: "+1234567890" })
-  @IsString()
+  @IsPhoneNumber("UZ")
+  @IsNotEmpty()
   phone_number: string;
 
   @ApiProperty({ example: "John Doe" })
@@ -30,9 +38,10 @@ export class CreateClientDto {
 
   @ApiProperty({ example: 123456 })
   @IsInt()
-  refresh_token: number;
+  refresh_token: string;
 
   @ApiProperty({ example: 789012 })
   @IsInt()
+  @IsOptional()
   client_otp: number;
 }

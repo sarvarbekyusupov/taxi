@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Otp } from "./entities/otp.entity";
-import { CreateOtpDto } from "./dto/create-otp.dto";
-import { UpdateOtpDto } from "./dto/update-otp.dto";
+import * as bcrypt from "bcrypt";
+import * as otpGenerator from "otp-generator";
+
+const OTP_TTL_SECONDS = 300;
 
 @Injectable()
 export class OtpService {
@@ -12,47 +14,52 @@ export class OtpService {
     private readonly otpRepo: Repository<Otp>
   ) {}
 
-  async create(dto: CreateOtpDto): Promise<Otp> {
-    const otp = this.otpRepo.create(dto);
-    return this.otpRepo.save(otp);
+  generateOtp(): string {
+    return otpGenerator.generate(4, {
+      digits: true,
+      lowerCaseAlphabets:false,
+      upperCaseAlphabets:false,
+      specialChars: false,
+    });
   }
 
-  async findAll(): Promise<Otp[]> {
-    return this.otpRepo.find();
-  }
-
-  async findOne(id: number): Promise<Otp> {
-    const otp = await this.otpRepo.findOneBy({ id });
-    if (!otp) throw new NotFoundException(`OTP with ID ${id} not found`);
-    return otp;
-  }
-
-  async update(id: number, dto: UpdateOtpDto): Promise<Otp> {
-    const otp = await this.findOne(id);
-    Object.assign(otp, dto);
-    return this.otpRepo.save(otp);
-  }
-
-  async remove(id: number): Promise<void> {
-    const result = await this.otpRepo.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException(`OTP with ID ${id} not found`);
-    }
-  }
-
-  async storeOtp(phoneNumber: string, otp: string): Promise<void> {
+  async storeOtp(phone_number: string){
+    const otp = this.generateOtp();
     const hashedOtp = await bcrypt.hash(otp, 10);
-    await this.redis.set(`otp:${phoneNumber}`, hashedOtp, "EX", 300); // expires in 5 min
+
+    await this.otpRepo.delete({ phone_number });
+
+    const otpEntity = this.otpRepo.create({
+      phone_number,
+      otp: hashedOtp,
+      createdAt: new Date(),
+    });
+
+    await this.otpRepo.save(otpEntity);
+
+    return otp; // return it for sending via SMS
   }
 
-  async verifyOtp(phoneNumber: string, otp: string): Promise<boolean> {
-    const hashedOtp = await this.redis.get(`otp:${phoneNumber}`);
-    if (!hashedOtp) return false;
+  async verifyOtp(phone_number: string, otp: string){
+    const record = await this.otpRepo.findOne({
+      where: { phone_number },
+      order: { createdAt: "DESC" },
+    });
 
-    const isMatch = await bcrypt.compare(otp, hashedOtp);
+    if (!record) return false;
+
+    const now = new Date();
+    const createdAt = new Date(record.createdAt);
+    const isExpired =
+      (now.getTime() - createdAt.getTime()) / 1000 > OTP_TTL_SECONDS;
+
+    if (isExpired) return false;
+
+    const isMatch = await bcrypt.compare(otp, record.otp);
     if (isMatch) {
-      await this.redis.del(`otp:${phoneNumber}`); // clear once used
+      await this.otpRepo.delete({ id: record.id });
     }
+
     return isMatch;
   }
 }
