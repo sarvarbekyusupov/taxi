@@ -1,5 +1,12 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { Column, Entity, PrimaryGeneratedColumn, Unique } from "typeorm";
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn, Unique } from "typeorm";
+import { Car } from "../../car/entities/car.entity";
+import { Ride } from "../../rides/entities/ride.entity";
+import { DriverPaymentCard } from "../../driver-payment-card/entities/driver-payment-card.entity";
+import { DriverEarning } from "../../driver-earnings/entities/driver-earning.entity";
+import { DriverPayout } from "../../driver-payouts/entities/driver-payout.entity";
+import { DriverSession } from "../../driver-session/entities/driver-session.entity";
+import { Rating } from "../../ratings/entities/rating.entity";
 
 @Entity("drivers")
 export class Driver {
@@ -78,4 +85,25 @@ export class Driver {
 
   @Column({ type: "text", nullable: true })
   refresh_token: string | null;
+
+  @OneToMany(() => Car, (car) => car.driver)
+  cars: Car[];
+
+  @OneToMany(() => Ride, (ride) => ride.driver)
+  rides: Ride[];
+
+  @OneToMany(() => DriverPaymentCard, (card) => card.driver)
+  payment_cards: DriverPaymentCard[];
+
+  @OneToMany(() => DriverEarning, (earning) => earning.driver)
+  earnings: DriverEarning[];
+
+  @OneToMany(() => DriverPayout, (payout) => payout.driver)
+  payouts: DriverPayout[];
+
+  @OneToMany(() => DriverSession, (session) => session.driver)
+  sessions: DriverSession[];
+
+  @OneToMany(() => Rating, (rating) => rating.driver_id)
+  ratings: Rating[];
 }

@@ -1,12 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, ManyToOne } from "typeorm";
+import { Ride } from "../../rides/entities/ride.entity";
+import { ClientPaymentCard } from "../../client-payment-card/entities/client-payment-card.entity";
 
 @Entity("payments")
 export class Payment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  ride_id: number;
 
   @Column("decimal")
   amount: number;
@@ -28,4 +28,12 @@ export class Payment {
 
   @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   created_at: Date;
+
+  @OneToOne(() => Ride, (ride) => ride.payment)
+  @JoinColumn({ name: "ride_id" })
+  ride: Ride;
+
+  @ManyToOne(() => ClientPaymentCard, (card) => card.payments)
+  @JoinColumn({ name: "payment_card_id" })
+  payment_card: ClientPaymentCard;
 }

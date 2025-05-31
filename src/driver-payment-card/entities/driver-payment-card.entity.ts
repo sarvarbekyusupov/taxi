@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Driver } from "../../driver/entities/driver.entity";
 
 @Entity("driver_payment_cards")
 export class DriverPaymentCard {
@@ -8,8 +9,9 @@ export class DriverPaymentCard {
   id: number;
 
   @ApiProperty({ description: "ID of the driver who owns the card" })
-  @Column()
-  driver_id: number;
+  @ManyToOne(() => Driver, (driver) => driver.payment_cards)
+  @JoinColumn({ name: "driver_id" })
+  driver: Driver;
 
   @ApiProperty({
     description:

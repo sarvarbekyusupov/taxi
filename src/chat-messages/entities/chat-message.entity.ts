@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
 import { ApiProperty } from "@nestjs/swagger";
+import { Ride } from "../../rides/entities/ride.entity";
 
 @Entity("chat_messages")
 export class ChatMessage {
@@ -34,4 +35,8 @@ export class ChatMessage {
   @ApiProperty({ example: "2025-05-29T13:45:00Z", required: false })
   @Column({ type: "timestamp", nullable: true })
   sent_at?: Date;
+
+  @ManyToOne(() => Ride, (ride) => ride.chat_messages)
+  @JoinColumn({ name: "ride_id" })
+  ride: Ride;
 }

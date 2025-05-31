@@ -4,18 +4,30 @@ import {
   Column,
   ManyToOne,
   CreateDateColumn,
+  JoinColumn,
+  OneToOne,
+  OneToMany,
 } from "typeorm";
+import { Driver } from "../../driver/entities/driver.entity";
+import { Client } from "../../client/entities/client.entity";
+import { Rating } from "../../ratings/entities/rating.entity";
+import { Payment } from "../../payments/entities/payment.entity";
+import { SupportTicket } from "../../support-tickets/entities/support-ticket.entity";
+import { ChatMessage } from "../../chat-messages/entities/chat-message.entity";
+import { PromoCodeUsage } from "../../promo-code-usage/entities/promo-code-usage.entity";
 
 @Entity("rides")
 export class Ride {
   @PrimaryGeneratedColumn("increment")
   id: number;
 
-  @Column()
-  client_id: number;
+  @ManyToOne(() => Client, (client) => client.rides)
+  @JoinColumn({ name: "client_id" })
+  client: Client;
 
-  @Column({ nullable: true })
-  driver_id: number;
+  @ManyToOne(() => Driver, (driver) => driver.rides)
+  @JoinColumn({ name: "driver_id" })
+  driver: Driver;
 
   @Column("decimal")
   pickup_latitude: number;
@@ -82,4 +94,21 @@ export class Ride {
 
   @Column("text", { nullable: true })
   cancellation_reason: string;
+
+  @OneToOne(() => Rating, (rating) => rating.ride)
+  rating: Rating;
+
+  //-------------------
+
+  @OneToOne(() => Payment, (payment) => payment.ride)
+  payment: Payment;
+
+  @OneToOne(() => SupportTicket, (ticket) => ticket.ride)
+  support_ticket: SupportTicket;
+
+  @OneToMany(() => ChatMessage, (message) => message.ride)
+  chat_messages: ChatMessage[];
+
+  @OneToOne(() => PromoCodeUsage, (usage) => usage.ride)
+  promo_code_usage: PromoCodeUsage;
 }

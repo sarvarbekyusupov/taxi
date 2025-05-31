@@ -20,7 +20,6 @@ export class Admin {
   @Column({ unique: true })
   email: string;
 
-  @Exclude()
   @Column({ nullable: true })
   password_hash: string;
 

@@ -3,14 +3,17 @@ import {
   Column,
   PrimaryGeneratedColumn,
   CreateDateColumn,
+  JoinColumn,
+  OneToOne,
 } from "typeorm";
+import { Ride } from "../../rides/entities/ride.entity";
 
 @Entity("support_tickets")
 export class SupportTicket {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({unique: true })
+  @Column({ unique: true })
   ticket_number: string;
 
   @Column()
@@ -36,4 +39,8 @@ export class SupportTicket {
 
   @CreateDateColumn()
   created_at: Date;
+
+  @OneToOne(() => Ride)
+  @JoinColumn({ name: "ride_id" })
+  ride: Ride;
 }

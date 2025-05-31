@@ -3,7 +3,9 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  OneToMany,
 } from "typeorm";
+import { PromoCodeUsage } from "../../promo-code-usage/entities/promo-code-usage.entity";
 
 @Entity()
 export class PromoCode {
@@ -45,4 +47,7 @@ export class PromoCode {
 
   @CreateDateColumn({ type: "timestamp" })
   created_at: Date;
+
+  @OneToMany(() => PromoCodeUsage, (usage) => usage.promo_code)
+  usages: PromoCodeUsage[];
 }

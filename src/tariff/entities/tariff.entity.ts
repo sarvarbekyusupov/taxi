@@ -8,17 +8,16 @@ import {
   ManyToOne,
   JoinColumn,
 } from "typeorm";
+import { ServiceArea } from "../../service-areas/entities/service-area.entity";
 
 @Entity()
 export class Tariff {
   @PrimaryGeneratedColumn()
   id: number;
 
-  // Relation example — optional
-  // @ManyToOne(() => ServiceArea, { nullable: false })
-  // @JoinColumn({ name: "service_area_id" })
-  @Column()
-  service_area_id: number;
+  @ManyToOne(() => ServiceArea, (area) => area.tariffs)
+  @JoinColumn({ name: "service_area_id" })
+  service_area: ServiceArea;
 
   @Column()
   car_type: string;

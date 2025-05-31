@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
 import { ApiProperty } from "@nestjs/swagger";
+import { Client } from "../../client/entities/client.entity";
 
 @Entity("client_sessions")
 export class ClientSession {
@@ -7,9 +8,11 @@ export class ClientSession {
   @ApiProperty({ example: 1, description: "Unique identifier for the session" })
   id: number;
 
-  @Column()
+
   @ApiProperty({ example: 42, description: "ID of the associated client" })
-  client_id: number;
+  @ManyToOne(() => Client, (client) => client.sessions)
+  @JoinColumn({ name: "client_id" })
+  client: Client;
 
   @Column()
   @ApiProperty({

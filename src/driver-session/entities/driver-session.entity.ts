@@ -1,12 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
+import { Driver } from "../../driver/entities/driver.entity";
 
 @Entity("driver_sessions")
 export class DriverSession {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  driver_id: number;
+  @ManyToOne(() => Driver, (driver) => driver.sessions)
+  @JoinColumn({ name: "driver_id" })
+  driver: Driver;
 
   @Column()
   refresh_token: string;

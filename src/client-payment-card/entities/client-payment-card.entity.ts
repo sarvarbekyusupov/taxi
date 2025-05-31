@@ -1,6 +1,8 @@
 
 import { ApiProperty } from "@nestjs/swagger";
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import { Client } from "../../client/entities/client.entity";
+import { Payment } from "../../payments/entities/payment.entity";
 
 @Entity("client_payment_cards")
 export class ClientPaymentCard {
@@ -8,9 +10,13 @@ export class ClientPaymentCard {
   @ApiProperty({ example: 1 })
   id: number;
 
-  @Column()
-  @ApiProperty({ example: 1001 })
-  client_id: number;
+  @ManyToOne(() => Client, (client) => client.payment_cards)
+  @JoinColumn({ name: "client_id" })
+  client: Client;
+
+  // @Column()
+  // @ApiProperty({ example: 1001 })
+  // client_id: number;
 
   @Column()
   @ApiProperty({ example: "tok_1Hh12345ABCDE" })
@@ -47,4 +53,9 @@ export class ClientPaymentCard {
   @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   @ApiProperty({ example: "2025-05-29T12:00:00Z" })
   created_at: Date;
+
+
+
+  @OneToMany(() => Payment, (payment) => payment.payment_card)
+  payments: Payment[];
 }

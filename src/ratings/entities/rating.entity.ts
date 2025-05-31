@@ -3,15 +3,22 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  OneToOne,
+  JoinColumn,
+  ManyToOne,
 } from "typeorm";
+import { Ride } from "../../rides/entities/ride.entity";
+import { Client } from "../../client/entities/client.entity";
+import { Driver } from "../../driver/entities/driver.entity";
 
 @Entity("ratings")
 export class Rating {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  ride_id: number;
+  @OneToOne(() => Ride, (ride) => ride.rating)
+  @JoinColumn({ name: "ride_id" })
+  ride: Ride;
 
   @Column()
   client_id: number;
@@ -30,4 +37,14 @@ export class Rating {
 
   @CreateDateColumn()
   created_at: Date;
+
+
+
+  @ManyToOne(() => Client, (client) => client.ratings)
+  @JoinColumn({ name: "client_id" })
+  client: Client;
+
+  @ManyToOne(() => Driver, (driver) => driver.ratings)
+  @JoinColumn({ name: "driver_id" })
+  driver: Driver;
 }

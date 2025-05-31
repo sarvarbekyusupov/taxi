@@ -10,6 +10,8 @@ import {
   Res,
   ParseIntPipe,
   HttpStatus,
+  HttpCode,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { AdminService } from "./admin.service";
 import { CreateAdminDto } from "./dto/create-admin.dto";
@@ -179,25 +181,16 @@ export class AdminController {
   }
 
   @Post("signout")
-  @ApiOperation({ summary: "Sign out an admin" })
-  @ApiBody({
-    schema: {
-      properties: {
-        refreshToken: { type: "string", example: "your-refresh-token" },
-      },
-    },
-  })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Sign out admin" })
+  @ApiResponse({ status: HttpStatus.OK, description: "User signed out." })
   @ApiResponse({
-    status: HttpStatus.OK,
-    description: "Admin signed out successfully.",
-    type: Object,
+    status: HttpStatus.BAD_REQUEST,
+    description: "Refresh token missing",
   })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: "User not found." })
-  async signOut(
-    @Body("refreshToken") refreshToken: string,
-    @Res({ passthrough: true }) res: Response
-  ) {
-    return this.adminService.signOut(refreshToken, res);
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: "User not found" })
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return await this.adminService.signOut(req, res);
   }
 
   @Post(":id/resend-activation")
