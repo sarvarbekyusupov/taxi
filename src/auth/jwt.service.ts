@@ -6,29 +6,6 @@ import * as process from "process";
 export class JwtTokenService {
   constructor(private readonly jwtService: JwtService) {}
 
-  //   generateTokens(payload: {
-  //     id: number;
-  //     email: string;
-  //     role: string;
-  //     is_active: boolean;
-  //   }) {
-  //     const accessToken = this.jwtService.sign(payload, {
-  //       secret: process.env.ACCESS_TOKEN_KEY,
-  //       expiresIn: process.env.ACCESS_TOKEN_TIME,
-  //     });
-
-  //     const refreshToken = this.jwtService.sign(payload, {
-  //       secret: process.env.REFRESH_TOKEN_KEY,
-  //       expiresIn: process.env.REFRESH_TOKEN_TIME,
-  //     });
-
-  //     // payload => id, is_active, role, email
-
-  //     return {
-  //       accessToken,
-  //       refreshToken,
-  //     };
-  //   }
 
   generateTokens(
     payload: object,

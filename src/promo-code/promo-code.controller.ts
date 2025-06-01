@@ -1,9 +1,26 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
-import { PromoCodeService } from './promo-code.service';
-import { CreatePromoCodeDto } from './dto/create-promo-code.dto';
-import { UpdatePromoCodeDto } from './dto/update-promo-code.dto';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+} from "@nestjs/common";
+import { PromoCodeService } from "./promo-code.service";
+import { CreatePromoCodeDto } from "./dto/create-promo-code.dto";
+import { UpdatePromoCodeDto } from "./dto/update-promo-code.dto";
+import { UserCategoryGuard } from "../auth/user.guard";
+import { RoleGuard } from "../auth/role.guard";
+import { Roles } from "../common/decorators/role.decorator";
+import { ApiTags, ApiBearerAuth } from "@nestjs/swagger";
 
-@Controller('promo-code')
+@ApiTags("Promo Code")
+@ApiBearerAuth()
+@Roles("admin", "super_admin")
+@UseGuards(RoleGuard, UserCategoryGuard)
+@Controller("promo-code")
 export class PromoCodeController {
   constructor(private readonly promoCodeService: PromoCodeService) {}
 
@@ -17,18 +34,21 @@ export class PromoCodeController {
     return this.promoCodeService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
+  @Get(":id")
+  findOne(@Param("id") id: string) {
     return this.promoCodeService.findOne(+id);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updatePromoCodeDto: UpdatePromoCodeDto) {
+  @Patch(":id")
+  update(
+    @Param("id") id: string,
+    @Body() updatePromoCodeDto: UpdatePromoCodeDto
+  ) {
     return this.promoCodeService.update(+id, updatePromoCodeDto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
+  @Delete(":id")
+  remove(@Param("id") id: string) {
     return this.promoCodeService.remove(+id);
   }
 }

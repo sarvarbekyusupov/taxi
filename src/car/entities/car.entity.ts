@@ -8,10 +8,10 @@ export class Car {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ApiProperty({ example: 101 })
+  @ApiProperty({ type: () => Driver })
   @ManyToOne(() => Driver, (driver) => driver.cars, {
-    cascade: ["insert", "update"], // optional: remove if not needed
-    onDelete: "SET NULL", // or 'CASCADE' depending on your logic
+    cascade: ["insert", "update"],
+    onDelete: "SET NULL",
     nullable: true,
   })
   @JoinColumn({ name: "driver_id" })

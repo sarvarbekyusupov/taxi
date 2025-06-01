@@ -4,9 +4,10 @@ import { DriverPaymentCardController } from './driver-payment-card.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DriverPaymentCard } from './entities/driver-payment-card.entity';
 import { Driver } from '../driver/entities/driver.entity';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports:[TypeOrmModule.forFeature([DriverPaymentCard, Driver])],
+  imports:[TypeOrmModule.forFeature([DriverPaymentCard, Driver]), AuthModule],
   controllers: [DriverPaymentCardController],
   providers: [DriverPaymentCardService],
 })

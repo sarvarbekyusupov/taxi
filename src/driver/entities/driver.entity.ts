@@ -86,6 +86,7 @@ export class Driver {
   @Column({ type: "text", nullable: true })
   refresh_token: string | null;
 
+  @ApiProperty({ type: () => [Car] }) // ✅ Add this for Swagger
   @OneToMany(() => Car, (car) => car.driver)
   cars: Car[];
 

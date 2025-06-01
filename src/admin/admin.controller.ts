@@ -11,7 +11,7 @@ import {
   ParseIntPipe,
   HttpStatus,
   HttpCode,
-  UnauthorizedException,
+  UseGuards,
 } from "@nestjs/common";
 import { AdminService } from "./admin.service";
 import { CreateAdminDto } from "./dto/create-admin.dto";
@@ -24,9 +24,13 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { Request, Response } from "express";
 import { Admin } from "./entities/admin.entity";
+import { Roles } from "../common/decorators/role.decorator";
+import { RoleGuard } from "../auth/role.guard";
+import { UserCategoryGuard } from "../auth/user.guard";
 
 @ApiTags("admin")
 @Controller("admin")
@@ -34,16 +38,18 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Post()
+  @UseGuards(RoleGuard)
+  @Roles("super_admin")
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Create a new admin" })
   @ApiBody({ type: CreateAdminDto })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: "Admin created successfully.",
-    type: Object,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: "An admin with this email already exists.",
+    description: "Admin with this email already exists.",
   })
   @ApiResponse({
     status: HttpStatus.SERVICE_UNAVAILABLE,
@@ -54,6 +60,9 @@ export class AdminController {
   }
 
   @Get()
+  @UseGuards(RoleGuard)
+  @Roles("super_admin")
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Retrieve all admins" })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -68,9 +77,12 @@ export class AdminController {
     return this.adminService.findAll();
   }
 
-  @Get(":id")
+  @Get(":admin_id")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("admin", "super_admin")
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Retrieve an admin by ID" })
-  @ApiParam({ name: "id", description: "Admin ID", type: Number })
+  @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Admin details.",
@@ -80,43 +92,47 @@ export class AdminController {
     status: HttpStatus.BAD_REQUEST,
     description: "Admin not found.",
   })
-  async findOne(@Param("id", ParseIntPipe) id: number) {
+  async findOne(@Param("admin_id", ParseIntPipe) id: number) {
     return this.adminService.findOne(id);
   }
 
-  @Patch(":id")
+  @Patch(":admin_id")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("admin", "super_admin")
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Update an admin" })
-  @ApiParam({ name: "id", description: "Admin ID", type: Number })
+  @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiBody({ type: UpdateAdminDto })
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Admin updated successfully.",
-    type: Object,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: "Admin not found.",
   })
   async update(
-    @Param("id", ParseIntPipe) id: number,
+    @Param("admin_id", ParseIntPipe) id: number,
     @Body() updateAdminDto: UpdateAdminDto
   ) {
     return this.adminService.update(id, updateAdminDto);
   }
 
-  @Delete(":id")
+  @Delete(":admin_id")
+  @UseGuards(RoleGuard)
+  @Roles("super_admin")
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Delete an admin" })
-  @ApiParam({ name: "id", description: "Admin ID", type: Number })
+  @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Admin deleted successfully.",
-    type: Object,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: "Admin not found.",
   })
-  async remove(@Param("id", ParseIntPipe) id: number) {
+  async remove(@Param("admin_id", ParseIntPipe) id: number) {
     return this.adminService.remove(id);
   }
 
@@ -126,7 +142,6 @@ export class AdminController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Account activated and signed in.",
-    type: Object,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -145,7 +160,6 @@ export class AdminController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Admin signed in successfully.",
-    type: Object,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
@@ -163,7 +177,6 @@ export class AdminController {
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Tokens refreshed successfully.",
-    type: Object,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
@@ -186,26 +199,28 @@ export class AdminController {
   @ApiResponse({ status: HttpStatus.OK, description: "User signed out." })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: "Refresh token missing",
+    description: "Refresh token missing.",
   })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: "User not found" })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: "User not found." })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    return await this.adminService.signOut(req, res);
+    return this.adminService.signOut(req, res);
   }
 
-  @Post(":id/resend-activation")
+  @Post(":admin_id/resend-activation")
+  @UseGuards(RoleGuard)
+  @Roles("super_admin")
+  @ApiBearerAuth()
   @ApiOperation({ summary: "Resend activation email" })
-  @ApiParam({ name: "id", description: "Admin ID", type: Number })
+  @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Activation email resent successfully.",
-    type: Object,
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
     description: "Admin not found or already activated.",
   })
-  async resendActivationEmail(@Param("id", ParseIntPipe) id: number) {
+  async resendActivationEmail(@Param("admin_id", ParseIntPipe) id: number) {
     return this.adminService.resendActivationEmail(id);
   }
 }

@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtTokenService } from './jwt.service';
 import { JwtModule } from '@nestjs/jwt';
+import { RoleGuard } from './role.guard';
+import { UserCategoryGuard } from './user.guard';
+// import { RoleBasedGuard } from './user.guard';
 
 
 @Module({
@@ -12,8 +15,8 @@ import { JwtModule } from '@nestjs/jwt';
     }),
   ],
   controllers: [],
-  providers: [AuthService, JwtTokenService], // ✅ Include JwtTokenService here
-  exports: [AuthService, JwtTokenService], // ✅ Now this works
+  providers: [AuthService, JwtTokenService, RoleGuard, UserCategoryGuard], // ✅ Include JwtTokenService here
+  exports: [AuthService, JwtTokenService, RoleGuard, UserCategoryGuard], // ✅ Now this works
 })
 export class AuthModule {}
 
