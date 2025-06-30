@@ -15,11 +15,6 @@ export class TariffService {
     private readonly serviceAreaRepository: Repository<ServiceArea>
   ) {}
 
-  // async create(createTariffDto: CreateTariffDto) {
-  //   const newTariff = this.tariffRepository.create(createTariffDto);
-  //   return await this.tariffRepository.save(newTariff);
-  // }
-
   async create(dto: CreateTariffDto): Promise<Tariff> {
     const serviceArea = await this.serviceAreaRepository.findOneBy({
       id: dto.service_area_id,
@@ -44,11 +39,19 @@ export class TariffService {
   }
 
   async findAll() {
-    return await this.tariffRepository.find();
+    return await this.tariffRepository.find({
+      relations: ["service_area"],
+      order: { created_at: "DESC" },
+    });
   }
 
   async findOne(id: number) {
-    return await this.tariffRepository.findOneBy({ id });
+    const tariff = await this.tariffRepository.findOne({
+      where: { id },
+      relations: ["service_area"],
+    });
+    if (!tariff) throw new NotFoundException("Tariff not found");
+    return tariff;
   }
 
   async update(id: number, updateTariffDto: UpdateTariffDto) {

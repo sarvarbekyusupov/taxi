@@ -17,7 +17,6 @@ import { UserCategoryGuard } from "../auth/user.guard";
 import { ApiTags, ApiBearerAuth, ApiOperation } from "@nestjs/swagger";
 
 @ApiTags("Ratings")
-@ApiBearerAuth()
 @Controller("ratings")
 @UseGuards(RoleGuard, UserCategoryGuard)
 export class RatingsController {

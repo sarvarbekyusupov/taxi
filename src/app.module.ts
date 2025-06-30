@@ -50,10 +50,23 @@ import { ClientPaymentCard } from "./client-payment-card/entities/client-payment
 import { Client } from "./client/entities/client.entity";
 import { ChatMessage } from "./chat-messages/entities/chat-message.entity";
 import { Car } from "./car/entities/car.entity";
+import { LocationModule } from './location/location.module';
+import { SocketModule } from "./socket/socket.module";
+import { BullModule } from "@nestjs/bull";
+import { ScheduleModule } from "@nestjs/schedule";
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
+    BullModule.forRoot({
+      redis: {
+        host: "localhost",
+        port: 6379,
+      },
+    }),
+    BullModule.registerQueue({ name: "notifications" }),
     ConfigModule.forRoot({ envFilePath: ".env", isGlobal: true }),
+    SocketModule,
     TypeOrmModule.forRoot({
       type: "postgres",
       host: process.env.PG_HOST,
@@ -83,7 +96,7 @@ import { Car } from "./car/entities/car.entity";
         ClientPaymentCard,
         Client,
         ChatMessage,
-        Car
+        Car,
       ],
       synchronize: true,
     }),
@@ -111,6 +124,7 @@ import { Car } from "./car/entities/car.entity";
     NotificationsModule,
     SupportTicketsModule,
     MailModule,
+    LocationModule,
   ],
   controllers: [],
   providers: [],

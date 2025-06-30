@@ -50,15 +50,21 @@ export class ChatMessagesService {
     return this.chatMessages.find();
   }
 
-  findOne(id: number) {
-    return this.chatMessages.findOneBy({ id });
+  async findOne(id: number): Promise<ChatMessage> {
+    const message = await this.chatMessages.findOneBy({ id });
+    if (!message) throw new NotFoundException("Chat message not found");
+    return message;
   }
 
-  update(id: number, dto: UpdateChatMessageDto) {
+  async update(id: number, dto: UpdateChatMessageDto) {
+    const message = await this.chatMessages.findOneBy({ id });
+    if (!message) throw new NotFoundException("Chat message not found");
     return this.chatMessages.update({ id }, dto);
   }
 
-  remove(id: number) {
+  async remove(id: number) {
+    const message = await this.chatMessages.findOneBy({ id });
+    if (!message) throw new NotFoundException("Chat message not found");
     return this.chatMessages.delete({ id });
   }
 }

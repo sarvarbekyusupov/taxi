@@ -10,16 +10,19 @@ import {
   Res,
   UnauthorizedException,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from "@nestjs/common";
 import { DriverService } from "./driver.service";
 import { CreateDriverDto, VerifyDriverOtpDto } from "./dto/create-driver.dto";
 import { UpdateDriverDto } from "./dto/update-driver.dto";
 import { SendOtpDto } from "../otp/dto/otp.dto";
 import { Response, Request } from "express";
-import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from "@nestjs/swagger";
 import { RoleGuard } from "../auth/role.guard";
 import { Roles } from "../common/decorators/role.decorator";
 import { UserCategoryGuard } from "../auth/user.guard";
+import { redisClient } from "../redis/redis.provider";
 
 @ApiTags("Drivers")
 @Controller("drivers")
@@ -33,7 +36,6 @@ export class DriverController {
   }
 
   @Get()
-  @ApiBearerAuth()
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver")
   @ApiOperation({ summary: "Get all drivers" })
@@ -42,7 +44,6 @@ export class DriverController {
   }
 
   @Get(":id")
-  @ApiBearerAuth()
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver")
   @ApiOperation({ summary: "Get a driver by ID" })
@@ -60,7 +61,6 @@ export class DriverController {
   }
 
   @Delete(":id")
-  @ApiBearerAuth()
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver")
   @ApiOperation({ summary: "Delete a driver by ID" })
@@ -95,21 +95,21 @@ export class DriverController {
     return this.driverService.refreshToken(refreshToken, res);
   }
 
+
   @Post("auth/logout")
-  @ApiBearerAuth()
-  @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("driver")
-  @ApiOperation({ summary: "Logout and clear session" })
-  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const refreshToken = req.cookies?.refresh_token;
-    if (!refreshToken) {
-      throw new UnauthorizedException("Refresh token missing");
-    }
-    return this.driverService.logout(refreshToken, res);
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Sign out driver" })
+  @ApiResponse({ status: HttpStatus.OK, description: "User signed out." })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: "Refresh token missing.",
+  })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: "User not found." })
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.driverService.logout(req, res);
   }
 
   @Get("auth/profile")
-  @ApiBearerAuth()
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver")
   @ApiOperation({ summary: "Get current driver profile" })
@@ -119,5 +119,19 @@ export class DriverController {
       throw new UnauthorizedException("Refresh token missing");
     }
     return this.driverService.getProfile(refreshToken);
+  }
+
+  @Post("status")
+  @ApiBearerAuth()
+  @UseGuards(RoleGuard)
+  @Roles("driver") // this applies the role requirement
+  @ApiOperation({ summary: "Toggle driver online/offline" })
+  async setOnlineStatus(@Body() body: { isOnline: boolean }, @Req() req: any) {
+    const driverId = req.user.sub;
+    await redisClient.set(
+      `driver:${driverId}:status`,
+      body.isOnline ? "online" : "offline"
+    );
+    return { message: `Driver is now ${body.isOnline ? "online" : "offline"}` };
   }
 }

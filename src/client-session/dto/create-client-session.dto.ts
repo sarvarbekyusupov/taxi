@@ -21,8 +21,8 @@ export class CreateClientSessionDto {
 
   @ApiProperty({
     example: "device-uuid-123",
-    required: false,
     description: "Device ID",
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -30,8 +30,8 @@ export class CreateClientSessionDto {
 
   @ApiProperty({
     example: "android",
+    description: "Device type (e.g., ios, android)",
     required: false,
-    description: "Device type",
   })
   @IsOptional()
   @IsString()
@@ -39,8 +39,8 @@ export class CreateClientSessionDto {
 
   @ApiProperty({
     example: "fcm_token_abc123",
+    description: "Firebase Cloud Messaging token",
     required: false,
-    description: "FCM token",
   })
   @IsOptional()
   @IsString()
@@ -48,8 +48,8 @@ export class CreateClientSessionDto {
 
   @ApiProperty({
     example: true,
+    description: "Whether the session is active",
     required: false,
-    description: "Session active status",
   })
   @IsOptional()
   @IsBoolean()
@@ -57,7 +57,7 @@ export class CreateClientSessionDto {
 
   @ApiProperty({
     example: "2025-07-01T12:00:00Z",
-    description: "Expiration timestamp",
+    description: "Session expiration date (ISO format)",
   })
   @IsDateString()
   expires_at: Date;

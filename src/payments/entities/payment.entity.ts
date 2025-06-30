@@ -9,74 +9,47 @@ import {
 import { ApiProperty } from "@nestjs/swagger";
 import { Ride } from "../../rides/entities/ride.entity";
 import { ClientPaymentCard } from "../../client-payment-card/entities/client-payment-card.entity";
+import { PaymentMethod, PaymentStatus } from "../enums/enum";
 
 @Entity("payments")
 export class Payment {
-  @ApiProperty({ example: 1, description: "Unique identifier for the payment" })
+  @ApiProperty({ example: 1 })
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ApiProperty({ example: 25.5, description: "Amount paid" })
-  @Column("decimal")
+  @ApiProperty({ example: 25.5 })
+  @Column("decimal", { precision: 10, scale: 2 })
   amount: number;
 
-  @ApiProperty({ example: "credit_card", description: "Method of payment" })
-  @Column()
-  payment_method: string;
+  @ApiProperty({ enum: PaymentMethod })
+  @Column({ type: "enum", enum: PaymentMethod })
+  payment_method: PaymentMethod;
 
-  @ApiProperty({
-    example: 10,
-    description: "ID of the payment card used, if applicable",
-    nullable: true,
-  })
-  @Column({ nullable: true })
-  payment_card_id?: number;
+  @ApiProperty({ enum: PaymentStatus, required: false })
+  @Column({ type: "enum", enum: PaymentStatus, nullable: true })
+  status?: PaymentStatus;
 
-  @ApiProperty({
-    example: "completed",
-    description: "Payment status",
-    nullable: true,
-  })
-  @Column({ nullable: true })
-  status?: string;
-
-  @ApiProperty({
-    example: "txn_123456789",
-    description: "Transaction identifier from payment gateway",
-    nullable: true,
-  })
+  @ApiProperty({ example: "txn_123456789", required: false })
   @Column({ nullable: true })
   transaction_id?: string;
 
-  @ApiProperty({
-    example: "2025-05-31T12:00:00Z",
-    description: "Timestamp when payment was processed",
-    nullable: true,
-  })
+  @ApiProperty({ required: false })
   @Column({ type: "timestamp", nullable: true })
   processed_at?: Date;
 
-  @ApiProperty({
-    example: "2025-05-31T11:59:59Z",
-    description: "Timestamp when payment record was created",
-  })
+  @ApiProperty()
   @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   created_at: Date;
 
-  @ApiProperty({
-    type: () => Ride,
-    description: "The ride associated with this payment",
-  })
+  @ApiProperty({ type: () => Ride })
   @OneToOne(() => Ride, (ride) => ride.payment)
   @JoinColumn({ name: "ride_id" })
   ride: Ride;
 
-  @ApiProperty({
-    type: () => ClientPaymentCard,
-    description: "Payment card used for the payment",
+  @ApiProperty({ type: () => ClientPaymentCard, required: false })
+  @ManyToOne(() => ClientPaymentCard, (card) => card.payments, {
     nullable: true,
   })
-  @ManyToOne(() => ClientPaymentCard, (card) => card.payments)
   @JoinColumn({ name: "payment_card_id" })
-  payment_card: ClientPaymentCard;
+  payment_card?: ClientPaymentCard;
 }

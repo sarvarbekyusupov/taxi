@@ -1,15 +1,22 @@
 import { Module } from '@nestjs/common';
-import { RideService } from './rides.service';
+import { RidesService } from './rides.service';
 import { RidesController } from './rides.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Ride } from './entities/ride.entity';
 import { Client } from '../client/entities/client.entity';
 import { Driver } from '../driver/entities/driver.entity';
 import { AuthModule } from '../auth/auth.module';
+import { DriverModule } from '../driver/driver.module';
+import { FareCalculationService } from './fare.calculation.service';
+import { Tariff } from '../tariff/entities/tariff.entity';
 
 @Module({
-  imports:[TypeOrmModule.forFeature([Ride, Client, Driver]), AuthModule],
-  controllers: [RidesController],
-  providers: [RideService],
+  imports: [
+    TypeOrmModule.forFeature([Ride, Client, Driver, Tariff]),
+    AuthModule,
+    DriverModule,
+  ],
+  controllers: [RidesController, ],
+  providers: [RidesService, FareCalculationService],
 })
 export class RidesModule {}

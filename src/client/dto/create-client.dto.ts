@@ -23,25 +23,4 @@ export class CreateClientDto {
   @IsString()
   profile_photo_url?: string;
 
-  @ApiProperty({ example: 25, required: false })
-  @IsOptional()
-  @IsInt()
-  total_rides?: number;
-
-  @ApiProperty({ example: true })
-  @IsBoolean()
-  is_active: boolean;
-
-  @ApiProperty({ example: false })
-  @IsBoolean()
-  is_verified: boolean;
-
-  @ApiProperty({ example: 123456 })
-  @IsInt()
-  refresh_token: string;
-
-  @ApiProperty({ example: 789012 })
-  @IsInt()
-  @IsOptional()
-  client_otp: number;
 }

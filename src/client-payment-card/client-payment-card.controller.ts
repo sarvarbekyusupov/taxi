@@ -7,24 +7,27 @@ import {
   Param,
   Delete,
   UseGuards,
+  HttpStatus,
+  ParseIntPipe,
 } from "@nestjs/common";
 import { ClientPaymentCardService } from "./client-payment-card.service";
 import { CreateClientPaymentCardDto } from "./dto/create-client-payment-card.dto";
 import { UpdateClientPaymentCardDto } from "./dto/update-client-payment-card.dto";
 import {
-  ApiBearerAuth,
   ApiTags,
   ApiOperation,
   ApiResponse,
+  ApiParam,
+  ApiBody,
 } from "@nestjs/swagger";
 import { Roles } from "../common/decorators/role.decorator";
 import { RoleGuard } from "../auth/role.guard";
 import { UserCategoryGuard } from "../auth/user.guard";
+import { ClientPaymentCard } from "./entities/client-payment-card.entity";
 
 @ApiTags("Client Payment Cards")
-@ApiBearerAuth()
 @UseGuards(RoleGuard, UserCategoryGuard)
-@Roles("client", "admin") 
+@Roles("client", "admin")
 @Controller("client-payment-card")
 export class ClientPaymentCardController {
   constructor(
@@ -33,48 +36,62 @@ export class ClientPaymentCardController {
 
   @Post()
   @ApiOperation({ summary: "Add a new payment card for the client" })
-  @ApiResponse({ status: 201, description: "Payment card added successfully" })
-  create(@Body() createClientPaymentCardDto: CreateClientPaymentCardDto) {
-    return this.clientPaymentCardService.create(createClientPaymentCardDto);
+  @ApiBody({ type: CreateClientPaymentCardDto })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: "Payment card added successfully",
+    type: ClientPaymentCard,
+  })
+  create(@Body() createDto: CreateClientPaymentCardDto) {
+    return this.clientPaymentCardService.create(createDto);
   }
 
   @Get()
   @ApiOperation({ summary: "Get all payment cards for the client" })
-  @ApiResponse({ status: 200, description: "List of client payment cards" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "List of client payment cards",
+    type: [ClientPaymentCard],
+  })
   findAll() {
     return this.clientPaymentCardService.findAll();
   }
 
   @Get(":id")
   @ApiOperation({ summary: "Get payment card by ID" })
-  @ApiResponse({ status: 200, description: "Payment card details" })
-  findOne(@Param("id") id: string) {
-    return this.clientPaymentCardService.findOne(+id);
+  @ApiParam({ name: "id", type: Number })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Payment card details",
+    type: ClientPaymentCard,
+  })
+  findOne(@Param("id", ParseIntPipe) id: number) {
+    return this.clientPaymentCardService.findOne(id);
   }
 
   @Patch(":id")
   @ApiOperation({ summary: "Update a payment card by ID" })
+  @ApiParam({ name: "id", type: Number })
+  @ApiBody({ type: UpdateClientPaymentCardDto })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: "Payment card updated successfully",
   })
   update(
-    @Param("id") id: string,
-    @Body() updateClientPaymentCardDto: UpdateClientPaymentCardDto
+    @Param("id", ParseIntPipe) id: number,
+    @Body() updateDto: UpdateClientPaymentCardDto
   ) {
-    return this.clientPaymentCardService.update(
-      +id,
-      updateClientPaymentCardDto
-    );
+    return this.clientPaymentCardService.update(id, updateDto);
   }
 
   @Delete(":id")
   @ApiOperation({ summary: "Delete a payment card by ID" })
+  @ApiParam({ name: "id", type: Number })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: "Payment card deleted successfully",
   })
-  remove(@Param("id") id: string) {
-    return this.clientPaymentCardService.remove(+id);
+  remove(@Param("id", ParseIntPipe) id: number) {
+    return this.clientPaymentCardService.remove(id);
   }
 }

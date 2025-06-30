@@ -12,7 +12,7 @@ import { UpdateClientDto } from "./dto/update-client.dto";
 import { OtpService } from "../otp/otp.service";
 import { JwtTokenService } from "../auth/jwt.service";
 import * as bcrypt from "bcrypt";
-import { Response } from "express";
+import { Request, Response } from "express";
 import { SendOtpDto, VerifyOtpDto } from "../otp/dto/otp.dto";
 
 
@@ -34,35 +34,51 @@ export class ClientService {
     return await this.clients.find();
   }
 
-  async findOne(id: number) {
-    return await this.clients.findOneBy({ id });
+  async findOne(id: number): Promise<Client> {
+    const client = await this.clients.findOneBy({ id });
+    if (!client) {
+      throw new BadRequestException(`Client with ID ${id} not found`);
+    }
+    return client;
   }
 
-  async update(id: number, updateClientDto: UpdateClientDto): Promise<void> {
+  async update(
+    id: number,
+    updateClientDto: UpdateClientDto
+  ): Promise<{ message: string }> {
+    const existingClient = await this.clients.findOneBy({ id });
+    if (!existingClient) {
+      throw new BadRequestException(`Client with ID ${id} not found`);
+    }
+
     await this.clients.update({ id }, updateClientDto);
+    return { message: "Client updated successfully" };
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: number): Promise<{ message: string }> {
+    const client = await this.clients.findOneBy({ id });
+    if (!client) {
+      throw new BadRequestException(`Client with ID ${id} not found`);
+    }
+
     await this.clients.delete(id);
+    return { message: "Client deleted successfully" };
   }
 
   // Step 1: Send OTP to phone number
   async sendOtp(sendOtpDto: SendOtpDto) {
     const { phone_number } = sendOtpDto;
 
-   
     try {
-      
       // Check if user exists to inform frontend
       const existingClient = await this.clients.findOneBy({ phone_number });
-      const new_otp =await this.otp.storeOtp(phone_number)
-
+      const new_otp = await this.otp.storeOtp(phone_number);
 
       return {
         message: "OTP sent successfully",
         requires_name: !existingClient, // Frontend knows if name is needed
         phone_number,
-        new_otp:new_otp
+        new_otp: new_otp,
       };
     } catch (error) {
       throw new BadRequestException("Failed to send OTP");
@@ -81,6 +97,7 @@ export class ClientService {
 
     // Find existing client
     let client = await this.clients.findOneBy({ phone_number });
+    let isNew = false;
 
     // If client doesn't exist, create new one
     if (!client) {
@@ -92,10 +109,11 @@ export class ClientService {
         phone_number,
         name: name.trim(),
         is_active: true,
-        is_verified:true
+        is_verified: true,
       });
 
       client = await this.clients.save(client);
+      isNew = true;
     }
 
     // Generate tokens
@@ -196,7 +214,12 @@ export class ClientService {
   }
 
   // Logout
-  async logout(refreshToken: string, res: Response) {
+  async logout(req: Request, res: Response) {
+    const refreshToken = req.cookies["refresh_token"];
+    if (!refreshToken) {
+      throw new BadRequestException("Refresh token missing");
+    }
+
     const decoded = await this.jwtService.verifyRefreshToken(
       refreshToken,
       process.env.CLIENT_REFRESH_TOKEN_KEY!
@@ -207,7 +230,6 @@ export class ClientService {
     if (!client || !client.refresh_token) {
       throw new UnauthorizedException("Invalid refresh token");
     }
-
 
     // Clear refresh token in the database
     await this.clients.update({ id: client.id }, { refresh_token: null });
@@ -220,16 +242,19 @@ export class ClientService {
     };
   }
 
- 
-
   async getProfile(refreshToken: string) {
-    const client = await this.clients.findOne({
-      where: { refresh_token: refreshToken },
-    });
+    const decoded = await this.jwtService.verifyRefreshToken(
+      refreshToken,
+      process.env.CLIENT_REFRESH_TOKEN_KEY!
+    );
 
-    if (!client) {
+    const client = await this.clients.findOneBy({ id: decoded.id });
+    if (!client || !client.refresh_token) {
       throw new UnauthorizedException("Invalid refresh token");
     }
+
+    const isValid = await bcrypt.compare(refreshToken, client.refresh_token);
+    if (!isValid) throw new UnauthorizedException("Invalid refresh token");
 
     return {
       id: client.id,

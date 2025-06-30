@@ -15,8 +15,6 @@ export class SupportTicketService {
     private readonly rideRepository: Repository<Ride>
   ) {}
 
-
-  
   async create(dto: CreateSupportTicketDto): Promise<SupportTicket> {
     let ride: Ride | null = null;
 
@@ -28,7 +26,9 @@ export class SupportTicketService {
         ride: { id: dto.ride_id },
       });
       if (existingTicket) {
-        throw new BadRequestException("Only one support ticket can be created per ride.");
+        throw new BadRequestException(
+          "Only one support ticket can be created per ride."
+        );
       }
     }
 
@@ -41,7 +41,7 @@ export class SupportTicketService {
       ticket_number: generateTicketNumber(),
       user_id: dto.user_id,
       user_type: dto.user_type,
-      ride:ride??undefined,
+      ride: ride ?? undefined,
       category: dto.category,
       status: dto.status,
       subject: dto.subject,
@@ -52,11 +52,19 @@ export class SupportTicketService {
   }
 
   async findAll() {
-    return await this.ticketRepository.find();
+    return this.ticketRepository.find({
+      relations: ["ride"],
+      order: { created_at: "DESC" },
+    });
   }
 
   async findOne(id: number) {
-    return await this.ticketRepository.findOneBy({ id });
+    const ticket = await this.ticketRepository.findOne({
+      where: { id },
+      relations: ["ride"],
+    });
+    if (!ticket) throw new NotFoundException("Support ticket not found");
+    return ticket;
   }
 
   async update(id: number, dto: UpdateSupportTicketDto) {

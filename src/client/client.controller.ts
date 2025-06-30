@@ -60,38 +60,57 @@ export class ClientController {
   // ========== PROTECTED AUTH ROUTES ==========
 
   @Post("auth/refresh")
-  @UseGuards(RoleGuard, UserCategoryGuard)
-  @ApiBearerAuth()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Refresh authentication token" })
-  @ApiResponse({ status: 200, description: "New token issued" })
+  @ApiOperation({ summary: "Refresh access token using refresh token" })
   refreshToken(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const refreshToken = req.cookies["refresh_token"];
+    const refreshToken = req.cookies?.refresh_token;
     if (!refreshToken) {
-      throw new UnauthorizedException("Refresh token not found");
+      throw new UnauthorizedException("Refresh token missing");
     }
     return this.clientService.refreshToken(refreshToken, res);
   }
+  // @Post("auth/refresh")
+  // @UseGuards(RoleGuard, UserCategoryGuard)
+  // @HttpCode(HttpStatus.OK)
+  // @ApiOperation({ summary: "Refresh authentication token" })
+  // @ApiResponse({ status: 200, description: "New token issued" })
+  // refreshToken(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  //   const refreshToken = req.cookies["refresh_token"];
+  //   if (!refreshToken) {
+  //     throw new UnauthorizedException("Refresh token not found");
+  //   }
+  //   return this.clientService.refreshToken(refreshToken, res);
+  // }
 
   @Post("auth/logout")
-  @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("client")
-  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Log out the client" })
-  @ApiResponse({ status: 200, description: "Logged out successfully" })
-  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const refreshToken = req.cookies["refresh_token"];
-    if (!refreshToken) {
-      throw new UnauthorizedException("Refresh token not found");
-    }
-    return this.clientService.logout(refreshToken, res);
+  @ApiOperation({ summary: "Sign out driver" })
+  @ApiResponse({ status: HttpStatus.OK, description: "User signed out." })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: "Refresh token missing.",
+  })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: "User not found." })
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.clientService.logout(req, res);
   }
+
+  // @Post("auth/logout")
+  // @UseGuards(RoleGuard, UserCategoryGuard)
+  // @Roles("client")
+  // @HttpCode(HttpStatus.OK)
+  // @ApiOperation({ summary: "Log out the client" })
+  // @ApiResponse({ status: 200, description: "Logged out successfully" })
+  // logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  //   const refreshToken = req.cookies["refresh_token"];
+  //   if (!refreshToken) {
+  //     throw new UnauthorizedException("Refresh token not found");
+  //   }
+  //   return this.clientService.logout(refreshToken, res);
+  // }
 
   @Get("auth/profile")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("client", "admin")
-  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Get client profile using refresh token" })
   @ApiResponse({ status: 200, description: "Client profile retrieved" })
@@ -108,7 +127,6 @@ export class ClientController {
   @Post()
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("client", "admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Create a new client" })
   @ApiResponse({ status: 201, description: "Client created successfully" })
   create(@Body() createClientDto: CreateClientDto) {
@@ -118,7 +136,6 @@ export class ClientController {
   @Get()
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("client", "admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Get all clients" })
   @ApiResponse({ status: 200, description: "List of clients" })
   findAll() {
@@ -128,7 +145,6 @@ export class ClientController {
   @Get(":id")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("client", "admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Get client by ID" })
   @ApiResponse({ status: 200, description: "Client found" })
   findOne(@Param("id") id: string) {
@@ -138,7 +154,6 @@ export class ClientController {
   @Patch(":id")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("client", "admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Update client by ID" })
   @ApiResponse({ status: 200, description: "Client updated successfully" })
   update(@Param("id") id: string, @Body() updateClientDto: UpdateClientDto) {
@@ -148,7 +163,6 @@ export class ClientController {
   @Delete(":id")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("client", "admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Delete client by ID" })
   @ApiResponse({ status: 200, description: "Client deleted successfully" })
   remove(@Param("id") id: string) {

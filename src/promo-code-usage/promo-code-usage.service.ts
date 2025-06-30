@@ -12,27 +12,35 @@ export class PromoCodeUsageService {
     private readonly repo: Repository<PromoCodeUsage>
   ) {}
 
-  create(dto: CreatePromoCodeUsageDto) {
+  async create(dto: CreatePromoCodeUsageDto): Promise<PromoCodeUsage> {
     const usage = this.repo.create(dto);
-    return this.repo.save(usage);
+    return await this.repo.save(usage);
   }
 
-  findAll() {
-    return this.repo.find();
+  async findAll(): Promise<PromoCodeUsage[]> {
+    return await this.repo.find();
   }
 
-  async findOne(id: number) {
-    const record = await this.repo.findOneBy({ id });
-    if (!record)
-      throw new NotFoundException(`Promo code usage ${id} not found`);
-    return record;
+  async findOne(id: number): Promise<PromoCodeUsage> {
+    const usage = await this.repo.findOneBy({ id });
+    if (!usage)
+      throw new NotFoundException(`Promo code usage with ID ${id} not found`);
+    return usage;
   }
 
-  update(id: number, dto: UpdatePromoCodeUsageDto) {
-    return this.repo.update(id, dto);
+  async update(
+    id: number,
+    dto: UpdatePromoCodeUsageDto
+  ): Promise<PromoCodeUsage> {
+    const existing = await this.findOne(id);
+    Object.assign(existing, dto);
+    return await this.repo.save(existing);
   }
 
-  remove(id: number) {
-    return this.repo.delete(id);
+  async remove(id: number): Promise<void> {
+    const result = await this.repo.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException(`Promo code usage with ID ${id} not found`);
+    }
   }
 }

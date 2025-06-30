@@ -86,6 +86,12 @@ export class Driver {
   @Column({ type: "text", nullable: true })
   refresh_token: string | null;
 
+  @Column({ default: false })
+  isOnline: boolean;
+
+  @Column({ nullable: true })
+  currentRideId: number; // null if not in a ride
+
   @ApiProperty({ type: () => [Car] }) // ✅ Add this for Swagger
   @OneToMany(() => Car, (car) => car.driver)
   cars: Car[];

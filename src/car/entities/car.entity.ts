@@ -30,7 +30,7 @@ export class Car {
   year: number;
 
   @ApiProperty({ example: "ABC1234" })
-  @Column()
+  @Column({ unique: true })
   license_plate: string;
 
   @ApiProperty({ example: "Red", required: false })

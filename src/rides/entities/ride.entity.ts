@@ -9,6 +9,7 @@ import {
   CreateDateColumn,
 } from "typeorm";
 
+
 import { Driver } from "../../driver/entities/driver.entity";
 import { Client } from "../../client/entities/client.entity";
 import { Rating } from "../../ratings/entities/rating.entity";
@@ -17,10 +18,53 @@ import { SupportTicket } from "../../support-tickets/entities/support-ticket.ent
 import { ChatMessage } from "../../chat-messages/entities/chat-message.entity";
 import { PromoCodeUsage } from "../../promo-code-usage/entities/promo-code-usage.entity";
 
+export enum RideType {
+  STANDARD = "standard",
+  OPEN_TRIP = "open_trip",
+}
+
+export enum RideStatus {
+  PENDING = "pending",
+  ACCEPTED = "accepted",
+  STARTED = "started",
+  COMPLETED = "completed",
+  CANCELLED = "cancelled",
+  PAID = "paid",
+}
+
+export enum PaymentMethod {
+  CASH = "cash",
+  CARD = "card",
+  WALLET = "wallet",
+}
+
+export enum TariffType {
+  ECONOMY = "economy",
+  COMFORT = "comfort",
+  BUSINESS = "business",
+  TIME_BASED = "time_based",
+  DELIVERY = "delivery", // ✅ Add this line
+}
+
+
 @Entity("rides")
 export class Ride {
   @PrimaryGeneratedColumn("increment")
   id: number;
+
+  @Column({
+    type: "enum",
+    enum: RideType,
+    default: RideType.STANDARD,
+  })
+  ride_type: RideType;
+
+  @Column({
+    type: "enum",
+    enum: RideStatus,
+    default: RideStatus.PENDING,
+  })
+  status: RideStatus;
 
   @ManyToOne(() => Client, (client) => client.rides)
   @JoinColumn({ name: "client_id" })
@@ -39,14 +83,14 @@ export class Ride {
   @Column("text")
   pickup_address: string;
 
-  @Column("decimal")
-  destination_latitude: number;
+  @Column("decimal", { nullable: true })
+  destination_latitude?: number;
 
-  @Column("decimal")
-  destination_longitude: number;
+  @Column("decimal", { nullable: true })
+  destination_longitude?: number;
 
-  @Column("text")
-  destination_address: string;
+  @Column("text", { nullable: true })
+  destination_address?: string;
 
   @Column("decimal", { nullable: true })
   estimated_distance?: number;
@@ -66,17 +110,27 @@ export class Ride {
   @Column("decimal", { nullable: true })
   final_fare?: number;
 
-  @Column({ nullable: true })
-  status?: string;
+  @Column({
+    type: "enum",
+    enum: PaymentMethod,
+    default: PaymentMethod.CASH,
+  })
+  payment_method: PaymentMethod;
 
-  @Column()
-  payment_method: string;
+  @Column({
+    type: "enum",
+    enum: TariffType,
+  })
+  tariff_type: TariffType;
 
   @Column({ nullable: true })
   promo_code_id?: number;
 
   @Column("decimal", { nullable: true })
   discount_amount?: number;
+
+  @Column({ default: false })
+  created_by_operator: boolean;
 
   @Column({ type: "timestamp" })
   requested_at: Date;

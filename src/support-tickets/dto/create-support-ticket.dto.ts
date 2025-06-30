@@ -1,37 +1,42 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsOptional, IsString, IsNumber } from "class-validator";
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsNumber,
+} from "class-validator";
+import {
+  SupportTicketStatus,
+  SupportTicketUserType,
+  SupportTicketCategory,
+} from "../enum/support-ticket.enums";
 
 export class CreateSupportTicketDto {
-  @ApiProperty({ example: "TCKT-00123" })
-  @IsOptional()
-  @IsString()
-
-  ticket_number: string;
-
   @ApiProperty({ example: 123 })
   @IsNotEmpty()
   @IsNumber()
   user_id: number;
 
-  @ApiProperty({ example: "PASSENGER" })
+  @ApiProperty({ enum: SupportTicketUserType })
   @IsNotEmpty()
-  @IsString()
-  user_type: string;
+  @IsEnum(SupportTicketUserType)
+  user_type: SupportTicketUserType;
 
   @ApiProperty({ example: 456, required: false })
   @IsOptional()
   @IsNumber()
   ride_id?: number;
 
-  @ApiProperty({ example: "Technical" })
+  @ApiProperty({ enum: SupportTicketCategory })
   @IsNotEmpty()
-  @IsString()
-  category: string;
+  @IsEnum(SupportTicketCategory)
+  category: SupportTicketCategory;
 
-  @ApiProperty({ example: "Open" })
+  @ApiProperty({ enum: SupportTicketStatus })
   @IsNotEmpty()
-  @IsString()
-  status: string;
+  @IsEnum(SupportTicketStatus)
+  status: SupportTicketStatus;
 
   @ApiProperty({ example: "App crashed" })
   @IsNotEmpty()

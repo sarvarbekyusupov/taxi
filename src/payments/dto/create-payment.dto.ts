@@ -1,24 +1,42 @@
 import { ApiProperty } from "@nestjs/swagger";
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from "class-validator";
+import { PaymentMethod, PaymentStatus } from "../enums/enum";
 
 export class CreatePaymentDto {
-  @ApiProperty({ example: 123 })
+  @ApiProperty()
+  @IsNumber()
   ride_id: number;
 
-  @ApiProperty({ example: 15.75 })
+  @ApiProperty()
+  @IsNumber()
   amount: number;
 
-  @ApiProperty({ example: "card" })
-  payment_method: string;
+  @ApiProperty({ enum: PaymentMethod })
+  @IsEnum(PaymentMethod)
+  payment_method: PaymentMethod;
 
-  @ApiProperty({ example: 456, required: false })
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
   payment_card_id?: number;
 
-  @ApiProperty({ example: "completed", required: false })
-  status?: string;
+  @ApiProperty({ enum: PaymentStatus, required: false })
+  @IsOptional()
+  @IsEnum(PaymentStatus)
+  status?: PaymentStatus;
 
-  @ApiProperty({ example: "txn_001", required: false })
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   transaction_id?: string;
 
-  @ApiProperty({ example: "2025-05-29T08:30:00.000Z", required: false })
+  @ApiProperty({ required: false })
+  @IsOptional()
   processed_at?: Date;
 }

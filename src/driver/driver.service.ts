@@ -8,7 +8,7 @@ import { OtpService } from "../otp/otp.service";
 import { JwtTokenService } from "../auth/jwt.service";
 import { SendOtpDto, VerifyOtpDto } from "../otp/dto/otp.dto";
 import * as bcrypt from 'bcrypt';
-import { Response } from "express";
+import { Request, Response } from "express";
 
 @Injectable()
 export class DriverService {
@@ -187,7 +187,14 @@ export class DriverService {
   }
 
   // Logout
-  async logout(refreshToken: string, res: Response) {
+  async logout(req: Request, res: Response) {
+
+    const refreshToken = req.cookies["refresh_token"];
+    if (!refreshToken) {
+      throw new BadRequestException("Refresh token missing");
+    }
+    console.log(refreshToken);
+
     const decoded = await this.jwtService.verifyRefreshToken(
       refreshToken,
       process.env.CLIENT_REFRESH_TOKEN_KEY!

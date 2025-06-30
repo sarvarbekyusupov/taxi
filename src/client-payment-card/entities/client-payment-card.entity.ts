@@ -14,11 +14,7 @@ export class ClientPaymentCard {
   @JoinColumn({ name: "client_id" })
   client: Client;
 
-  // @Column()
-  // @ApiProperty({ example: 1001 })
-  // client_id: number;
-
-  @Column()
+  @Column({ select: false })
   @ApiProperty({ example: "tok_1Hh12345ABCDE" })
   card_token: string;
 
@@ -53,8 +49,6 @@ export class ClientPaymentCard {
   @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
   @ApiProperty({ example: "2025-05-29T12:00:00Z" })
   created_at: Date;
-
-
 
   @OneToMany(() => Payment, (payment) => payment.payment_card)
   payments: Payment[];

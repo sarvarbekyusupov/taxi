@@ -18,7 +18,6 @@ import { UserCategoryGuard } from "../auth/user.guard";
 import { Roles } from "../common/decorators/role.decorator";
 
 @ApiTags("Driver Payouts")
-@ApiBearerAuth()
 @UseGuards(RoleGuard, UserCategoryGuard)
 @Roles("driver")
 @Controller("driver-payouts")

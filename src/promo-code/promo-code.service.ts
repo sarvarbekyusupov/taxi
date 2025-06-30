@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { PromoCode } from "./entities/promo-code.entity";
@@ -12,32 +16,55 @@ export class PromoCodeService {
     private readonly promoCodeRepo: Repository<PromoCode>
   ) {}
 
-  async create(createDto: CreatePromoCodeDto): Promise<PromoCode> {
-    const promo = this.promoCodeRepo.create(createDto);
-    return this.promoCodeRepo.save(promo);
+  /**
+   * Create a new promo code
+   */
+  async create(dto: CreatePromoCodeDto): Promise<PromoCode> {
+    const existing = await this.promoCodeRepo.findOneBy({
+      code: dto.code,
+    });
+    if (existing) {
+      throw new BadRequestException("Promo code already exists");
+    }
+
+    const promo = this.promoCodeRepo.create(dto);
+    return await this.promoCodeRepo.save(promo);
   }
 
+  /**
+   * Get all promo codes
+   */
   async findAll(): Promise<PromoCode[]> {
-    return this.promoCodeRepo.find();
+    return await this.promoCodeRepo.find({
+      order: { created_at: "DESC" },
+    });
   }
 
+  /**
+   * Get a single promo code by ID
+   */
   async findOne(id: number): Promise<PromoCode> {
     const promo = await this.promoCodeRepo.findOneBy({ id });
-    if (!promo)
+    if (!promo) {
       throw new NotFoundException(`Promo code with ID ${id} not found`);
+    }
     return promo;
   }
 
-  async update(id: number, updateDto: UpdatePromoCodeDto): Promise<PromoCode> {
+  /**
+   * Update a promo code
+   */
+  async update(id: number, dto: UpdatePromoCodeDto): Promise<PromoCode> {
     const promo = await this.findOne(id);
-    Object.assign(promo, updateDto);
-    return this.promoCodeRepo.save(promo);
+    Object.assign(promo, dto);
+    return await this.promoCodeRepo.save(promo);
   }
 
+  /**
+   * Delete a promo code
+   */
   async remove(id: number): Promise<void> {
-    const result = await this.promoCodeRepo.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException(`Promo code with ID ${id} not found`);
-    }
+    const promo = await this.findOne(id);
+    await this.promoCodeRepo.remove(promo);
   }
 }

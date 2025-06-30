@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
 import { ApiProperty } from "@nestjs/swagger";
 import { Client } from "../../client/entities/client.entity";
 
@@ -8,20 +14,19 @@ export class ClientSession {
   @ApiProperty({ example: 1, description: "Unique identifier for the session" })
   id: number;
 
-
-  @ApiProperty({ example: 42, description: "ID of the associated client" })
-  @ManyToOne(() => Client, (client) => client.sessions)
+  @ManyToOne(() => Client, (client) => client.sessions, { onDelete: "CASCADE" })
   @JoinColumn({ name: "client_id" })
+  @ApiProperty({ example: 42, description: "ID of the associated client" })
   client: Client;
 
-  @Column()
+  @Column({ type: "text" })
   @ApiProperty({
     example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     description: "Refresh token for session renewal",
   })
   refresh_token: string;
 
-  @Column({ nullable: true })
+  @Column({ type: "varchar", length: 255, nullable: true })
   @ApiProperty({
     example: "device-uuid-123",
     required: false,
@@ -29,7 +34,7 @@ export class ClientSession {
   })
   device_id?: string;
 
-  @Column({ nullable: true })
+  @Column({ type: "varchar", length: 50, nullable: true })
   @ApiProperty({
     example: "ios",
     required: false,
@@ -37,7 +42,7 @@ export class ClientSession {
   })
   device_type?: string;
 
-  @Column({ nullable: true })
+  @Column({ type: "varchar", length: 512, nullable: true })
   @ApiProperty({
     example: "fcm_token_abc123",
     required: false,
@@ -45,7 +50,7 @@ export class ClientSession {
   })
   fcm_token?: string;
 
-  @Column({ default: true })
+  @Column({ type: "boolean", default: true })
   @ApiProperty({
     example: true,
     description: "Whether the session is currently active",

@@ -96,3 +96,163 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+
+## ADMIN
+👤 Admin CRUD AUTH
+✅ DTO va entity to‘liq validatsiyalangan (class-validator)
+🔐 RoleGuard va rate limit bilan himoyalangan
+🔄 JWT token va cookie asosida autentifikatsiya
+📄 Swagger bilan hujjatlashtirilgan
+✉️ Email orqali faollashtirish linki yuboriladi
+💾 Transactionlar, xashlangan token/parollar ishlatilgan
+
+## CAR
+🚗 Car CRUD
+✅ DTO va entity to‘liq validatsiyalangan (class-validator)
+🔐 RoleGuard va UserCategoryGuard bilan himoyalangan
+🔄 Driver mavjudligi tekshiriladi
+📄 Swagger bilan hujjatlashtirilgan
+💾 TypeORM orqali xavfsiz CRUD amallar bajariladi
+
+## CHAT MESSAGE
+💬 Chat xabarlar uchun CRUD  
+✅ DTO va entity validatsiyalangan (class-validator)  
+🔐 RoleGuard va UserCategoryGuard bilan himoyalangan  
+🔗 Ride bilan bog‘liq, mavjudligi tekshiriladi  
+📄 Swagger bilan hujjatlashtirilgan  
+💾 TypeORM orqali yozuvlar saqlanadi
+
+## CLIENT PAYMENT CARD
+💳 Client kartalarini qo‘shish, yangilash va boshqarish
+✅ DTO va entity to‘liq validatsiyalangan (class-validator, Swagger)
+🔐 RoleGuard va UserCategoryGuard bilan himoyalangan
+🔄 Default karta holati boshqariladi
+📄 Swagger bilan hujjatlashtirilgan
+💾 TypeORM orqali transactionga tayyor CRUD amallar
+
+## CLIENT SESSION
+🧾 Client session CRUD  
+✅ DTO va entity to‘liq validatsiyalangan  
+🔐 Client uchun RoleGuard va UserCategoryGuard qo‘llangan  
+🔄 Refresh tokenlar, qurilma ma’lumotlari bilan ishlash  
+📄 Swagger bilan hujjatlashtirilgan
+
+## DAILY STATS
+📊 Statistikani saqlovchi modul (kunlik)
+✅ CRUD, Swagger hujjatlari to‘liq
+🔗 ServiceArea bilan `ManyToOne` aloqasi bor
+♻️ Duplicate kiritishni `@Unique` orqali cheklaydi
+
+## DRIVER EARNINGS
+💰 Haydovchilarning daromadlari CRUD
+✅ DTO va entity class-validator va Swagger bilan validatsiyalangan
+🔐 RoleGuard va UserCategoryGuard bilan faqat driver huquqi
+🔄 Har bir ride uchun yagona daromad yozuvi kafolatlanadi
+📄 Swagger hujjatlari bilan to‘liq hujjatlashtirilgan
+💾 TypeORM orqali driver va ride bilan bog‘langan saqlash amallari
+
+
+## DRIVER PAYMENT CARDS
+💳 Haydovchi to‘lov kartalari CRUD
+✅ DTO va entity validatsiya qilingan (class-validator, Swagger)
+🔐 Faqat driver roliga ruxsat berilgan (RoleGuard, UserCategoryGuard)
+📄 Swagger hujjatlari mavjud, barcha maydonlar to‘liq ta'riflangan
+
+## DRIVER PAYOUTS
+💸 Driver payout CRUD
+✅ DTO va entity Swagger va class-validator bilan to‘liq validatsiyalangan
+🔐 RoleGuard va UserCategoryGuard bilan faqat driver roli uchun himoyalangan
+🔄 Driver mavjudligi tekshiriladi
+📄 Swagger hujjati bilan to‘liq integratsiya
+💾 Transaction-like mantiqda ishlaydi (create/update/delete uchun tekshiruvlar mavjud)
+
+## DRIVER SESSION
+🔐 Driver sessiyalarini yaratish, yangilash, o‘chirish
+✅ DTO va Entity class-validator va Swagger bilan validatsiyalangan
+👤 Driver mavjudligi tekshiriladi (create paytida)
+🔒 Himoya: RoleGuard, UserCategoryGuard va faqat driver roli
+📄 Swagger hujjatlari to‘liq kiritilgan
+🧠 Mantiqiy update va delete tekshiruvlar bilan to‘ldirilgan
+
+## NOTIFICATIONS
+📣 Real-time va rejalashtirilgan bildirishnomalar
+🧠 Push, SMS, Email orqali yuboriladi (client/driver)
+📦 Bull + Cron orqali avtomatik yuborish
+📡 Socket.IO orqali real-time notification
+🧾 Swagger bilan to‘liq hujjatlashtirilgan
+🔐 Guard va Role bilan himoyalangan
+✅ Mass yuborish (client/driver)
+✅ O‘qilgan deb belgilash va hisoblash
+✅ DTO va entity validatsiyalangan
+✅ Queue, enum, loglar bilan boyitilgan
+
+## PAYMENTS
+💳 To‘lov CRUD operatsiyalari
+✅ DTO va entity validatsiyalangan
+🔐 Faqat `admin`, `super_admin` rollariga ruxsat
+📄 Swagger hujjatlari yozilgan
+🔄 Ride va ClientPaymentCard bilan to‘g‘ri aloqalar
+
+## PROMO CODE
+🏷️ Promo kodlar uchun CRUD operatsiyalar
+✅ DTO va entity class-validator bilan validatsiyalangan
+🔐 Faqat admin va super_admin rollariga ruxsat berilgan
+📄 Swagger hujjatlari bilan hujjatlashtirilgan
+⚠️ Mavjud kodlar ustida tekshiruvlar (duplicate check) mavjud
+
+## PROMO CODE USAGE
+🎟️ Promo kodlar ishlatilishini kuzatuvchi modul
+✅ DTO va entity class-validator bilan validatsiyalangan
+🔐 Faqat admin va super_admin rollari uchun ruxsat
+📄 Swagger hujjatlari bilan to‘liq hujjatlashtirilgan
+⚠️ Topilmagan holatlar uchun NotFoundException ishlatilgan
+
+## RATING
+⭐ Client → Driver reyting berish moduli
+✅ DTO va entity validatsiyalangan
+🚫 Ride uchun bitta reytingdan ko‘p qo‘yish mumkin emas
+🔐 Faqat admin va super_admin kirishi mumkin
+📄 Swagger hujjatlari bilan to‘liq hujjatlashtirilgan
+
+## RIDESERVICE
+🚕 Ride yaratish, haydovchi qidirish va ride jarayonlarini boshqaradi  
+🛡️ Redis + PostgreSQL bilan holatlarni saqlaydi  
+🔄 Real-time Socket.IO orqali notify  
+📊 Prometheus bilan monitoring (histogram, counter)  
+🧠 Circuit breaker va rate limiter integratsiyasi  
+🔧 ENV orqali sozlanadi (`RIDE_LOCK_TTL_MS`, `CB_FAILURE_THRESHOLD`, va boshqalar)
+
+## SERVICE AREAS
+🌍 Hududlar (xizmat ko‘rsatish zonalari) CRUD boshqaruvi
+✅ DTO va entity to‘liq validatsiyalangan
+🔐 RoleGuard bilan himoyalash qo‘llab-quvvatlanadi
+📄 Swagger bilan hujjatlashtirilgan
+🔗 Tariff va DailyStats bilan relations ishlatilgan
+💾 Topilgan ma’lumotlar ID asosida tekshiriladi, mavjud bo‘lmasa NotFoundException qaytadi
+
+## SUPPORT TICKETS
+🎫 Support ticketlar CRUD
+✅ DTO’lar bilan to‘liq validatsiya (ride bog‘lanishi tekshiriladi)
+🔗 Har bir ticket — ixtiyoriy ride_id bilan, ride mavjud bo‘lmasa NotFoundException
+🚫 Bitta ride uchun faqat bitta ochiq ticket (duplicate uchun BadRequestException)
+🆔 ticket_number avtomatik generatsiya qilinadi (TCKT-…)
+🔐 RoleGuard & UserCategoryGuard bilan faqat admin/super_admin kirishi mumkin
+📄 Swagger annotatsiyalari bilan hujjatlashtirilgan
+
+## TARIFFS
+💰 Tariff’lar CRUD boshqaruvi
+✅ DTO’lar bilan to‘liq validatsiya (car_type, rates va service_area tekshiriladi)
+🔗 Har bir tariff “ServiceArea” bilan bog‘lanadi, mavjud bo‘lmasa NotFoundException
+📄 Swagger annotatsiyalari: request/response hujjatlashtirilgan
+🔐 RoleGuard & UserCategoryGuard bilan faqat admin/super_admin ruxsati
+📑 findAll()–da service_area relation, so‘rov orderBy(created_at DESC) bilan qaytadi
+🛠️ update() va remove() simple TypeORM operatsiyalari orqali amalga oshiriladi
+
+## CLIENT, DRIVER
+👤 CRUD: create, findAll, findOne, update, remove (BadRequestException bilan)
+📲 OTP yollash & tekshirish: sendOtp → yuborish, verifyOtpAndAuth → autentifikatsiya/ro‘yxatdan o‘tish
+🔑 JWT auth: access & refresh token, refresh bazada hash, HTTP-only cookie
+🔄 Token yangilash: eski refresh tekshiradi, yangisini yaratadi, cookie yangilanadi
+🚪 Logout: refresh tozalaydi, cookie o‘chiradi
+⚙️ ENV konfiguratsiya: CLIENT_REFRESH_TOKEN_KEY, CLIENT_ACCESS_TOKEN_KEY, COOKIE_TIME va boshqalar

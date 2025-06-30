@@ -6,18 +6,5 @@ import { CompleteSignupDto, RequestOtpDto, VerifyOtpDto } from "./dto/auth.dto";
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  // @Post("request-otp")
-  // async requestOtp(@Body() dto: RequestOtpDto) {
-  //   return this.authService.sendOtp(dto.phone_number, );
-  // }
-
-  // @Post("verify-otp")
-  // async verifyOtp(@Body() dto: VerifyOtpDto) {
-  //   return this.authService.verifyOtp(dto.phone_number, dto.otp);
-  // }
-
-  // @Post("complete-signup")
-  // async completeSignup(@Body() dto: CompleteSignupDto) {
-  //   return this.authService.completeSignup(dto.phone_number, dto.name);
-  // }
+ 
 }

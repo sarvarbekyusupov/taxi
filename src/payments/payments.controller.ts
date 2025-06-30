@@ -17,7 +17,6 @@ import { UserCategoryGuard } from "../auth/user.guard";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 
 @ApiTags("Payments")
-@ApiBearerAuth()
 @Controller("payments")
 @UseGuards(RoleGuard, UserCategoryGuard)
 export class PaymentsController {

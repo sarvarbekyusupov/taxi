@@ -18,7 +18,6 @@ import { Roles } from "../common/decorators/role.decorator";
 import { UserCategoryGuard } from "../auth/user.guard";
 
 @ApiTags("Driver Payment Cards")
-@ApiBearerAuth()
 @UseGuards(RoleGuard, UserCategoryGuard)
 @Roles("driver")
 @Controller("driver-payment-card")

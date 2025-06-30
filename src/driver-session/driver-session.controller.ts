@@ -18,31 +18,36 @@ import { UserCategoryGuard } from "../auth/user.guard";
 import { Roles } from "../common/decorators/role.decorator";
 
 @ApiTags("Driver Sessions")
-@ApiBearerAuth()
 @Controller("driver-session")
-@UseGuards(RoleGuard, UserCategoryGuard)
-@Roles("driver") // Only drivers can access this controller
 export class DriverSessionController {
   constructor(private readonly driverSessionService: DriverSessionService) {}
 
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("driver") // Only drivers can access this controller
   @Post()
   @ApiOperation({ summary: "Create a driver session" })
   create(@Body() createDriverSessionDto: CreateDriverSessionDto) {
     return this.driverSessionService.create(createDriverSessionDto);
   }
 
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("driver") // Only drivers can access this controller
   @Get()
   @ApiOperation({ summary: "Get all driver sessions" })
   findAll() {
     return this.driverSessionService.findAll();
   }
 
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("driver") // Only drivers can access this controller
   @Get(":id")
   @ApiOperation({ summary: "Get a specific driver session by ID" })
   findOne(@Param("id") id: string) {
     return this.driverSessionService.findOne(+id);
   }
 
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("driver") // Only drivers can access this controller
   @Patch(":id")
   @ApiOperation({ summary: "Update a driver session by ID" })
   update(
@@ -52,6 +57,8 @@ export class DriverSessionController {
     return this.driverSessionService.update(+id, updateDriverSessionDto);
   }
 
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("driver") // Only drivers can access this controller
   @Delete(":id")
   @ApiOperation({ summary: "Delete a driver session by ID" })
   remove(@Param("id") id: string) {

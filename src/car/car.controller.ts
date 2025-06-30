@@ -27,6 +27,7 @@ import { UserCategoryGuard } from "../auth/user.guard";
 import { Car } from "./entities/car.entity";
 
 @ApiTags("car")
+@ApiBearerAuth() // Applies to all routes by default
 @Controller("car")
 export class CarController {
   constructor(private readonly carService: CarService) {}
@@ -34,7 +35,6 @@ export class CarController {
   @Post()
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver", "admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Create a car" })
   @ApiBody({ type: CreateCarDto })
   @ApiResponse({
@@ -52,7 +52,6 @@ export class CarController {
   @Get()
   @UseGuards(RoleGuard)
   @Roles("admin", "super_admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Retrieve all cars" })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -66,9 +65,8 @@ export class CarController {
   @Get(":id")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver", "admin", "super_admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Get car by ID" })
-  @ApiParam({ name: "id", type: Number, description: "Car ID" })
+  @ApiParam({ name: "id", type: Number, description: "Car ID", required: true })
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Car details.",
@@ -82,9 +80,8 @@ export class CarController {
   @Patch(":id")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver", "admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Update a car" })
-  @ApiParam({ name: "id", type: Number, description: "Car ID" })
+  @ApiParam({ name: "id", type: Number, description: "Car ID", required: true })
   @ApiBody({ type: UpdateCarDto })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -101,9 +98,8 @@ export class CarController {
   @Delete(":id")
   @UseGuards(RoleGuard)
   @Roles("admin", "super_admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Delete a car" })
-  @ApiParam({ name: "id", type: Number, description: "Car ID" })
+  @ApiParam({ name: "id", type: Number, description: "Car ID", required: true })
   @ApiResponse({
     status: HttpStatus.OK,
     description: "Car deleted successfully.",
@@ -113,3 +109,4 @@ export class CarController {
     return this.carService.remove(id);
   }
 }
+

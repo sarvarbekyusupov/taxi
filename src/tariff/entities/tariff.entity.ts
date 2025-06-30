@@ -1,10 +1,10 @@
 import {
   Entity,
-  Column,
   PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
   CreateDateColumn,
   UpdateDateColumn,
-  ManyToOne,
   JoinColumn,
 } from "typeorm";
 import { ApiProperty } from "@nestjs/swagger";
@@ -18,38 +18,37 @@ export class Tariff {
 
   @ApiProperty({ type: () => ServiceArea })
   @ManyToOne(() => ServiceArea, (area) => area.tariffs, {
-    cascade: ["insert", "update"],
     onDelete: "CASCADE",
     nullable: false,
   })
   @JoinColumn({ name: "service_area_id" })
   service_area: ServiceArea;
 
-  @ApiProperty({ example: "sedan" })
+  @ApiProperty({ example: "Economy" })
   @Column()
   car_type: string;
 
-  @ApiProperty({ example: 3.5 })
+  @ApiProperty()
   @Column("decimal", { precision: 10, scale: 2 })
   base_fare: number;
 
-  @ApiProperty({ example: 1.2 })
+  @ApiProperty()
   @Column("decimal", { precision: 10, scale: 2 })
   per_km_rate: number;
 
-  @ApiProperty({ example: 0.5 })
+  @ApiProperty()
   @Column("decimal", { precision: 10, scale: 2 })
   per_minute_rate: number;
 
-  @ApiProperty({ example: 5.0 })
+  @ApiProperty()
   @Column("decimal", { precision: 10, scale: 2 })
   minimum_fare: number;
 
-  @ApiProperty({ example: 2.0, required: false })
-  @Column("decimal", { precision: 10, scale: 2, nullable: true })
+  @ApiProperty()
+  @Column("decimal", { precision: 10, scale: 2 })
   cancellation_fee: number;
 
-  @ApiProperty({ example: true })
+  @ApiProperty()
   @Column({ default: true })
   is_active: boolean;
 

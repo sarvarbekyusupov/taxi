@@ -22,7 +22,6 @@ import { UserCategoryGuard } from "../auth/user.guard";
 import { Roles } from "../common/decorators/role.decorator";
 
 @ApiTags("Client Sessions")
-@ApiBearerAuth()
 @UseGuards(RoleGuard, UserCategoryGuard)
 @Roles( "client") // Enforcing client-only access
 @Controller("client-session")

@@ -53,19 +53,36 @@ export class CarService {
     return this.cars.save(car);
   }
 
-  findAll() {
-    return this.cars.find();
+  async findAll(): Promise<Car[]> {
+    return this.cars.find({ relations: ["driver"] });
   }
 
-  findOne(id: number) {
-    return this.cars.findOneBy({ id });
+  async findOne(id: number): Promise<Car> {
+    const car = await this.cars.findOne({
+      where: { id },
+      relations: ["driver"],
+    });
+    if (!car) {
+      throw new BadRequestException(`Car with ID ${id} not found`);
+    }
+    return car;
   }
 
-  update(id: number, dto: UpdateCarDto) {
-    return this.cars.update({ id }, dto);
+  async update(id: number, dto: UpdateCarDto): Promise<{ message: string }> {
+    const car = await this.cars.findOneBy({ id });
+    if (!car) {
+      throw new BadRequestException(`Car with ID ${id} not found`);
+    }
+    await this.cars.update({ id }, dto);
+    return { message: "Car updated successfully" };
   }
 
-  remove(id: number) {
-    return this.cars.delete({ id });
+  async remove(id: number): Promise<{ message: string }> {
+    const car = await this.cars.findOneBy({ id });
+    if (!car) {
+      throw new BadRequestException(`Car with ID ${id} not found`);
+    }
+    await this.cars.delete({ id });
+    return { message: "Car deleted successfully" };
   }
 }

@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  ParseIntPipe,
 } from "@nestjs/common";
 import { PromoCodeService } from "./promo-code.service";
 import { CreatePromoCodeDto } from "./dto/create-promo-code.dto";
@@ -14,9 +15,16 @@ import { UpdatePromoCodeDto } from "./dto/update-promo-code.dto";
 import { UserCategoryGuard } from "../auth/user.guard";
 import { RoleGuard } from "../auth/role.guard";
 import { Roles } from "../common/decorators/role.decorator";
-import { ApiTags, ApiBearerAuth } from "@nestjs/swagger";
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiBody,
+} from "@nestjs/swagger";
 
-@ApiTags("Promo Code")
+@ApiTags("Promo Codes")
 @ApiBearerAuth()
 @Roles("admin", "super_admin")
 @UseGuards(RoleGuard, UserCategoryGuard)
@@ -25,30 +33,40 @@ export class PromoCodeController {
   constructor(private readonly promoCodeService: PromoCodeService) {}
 
   @Post()
-  create(@Body() createPromoCodeDto: CreatePromoCodeDto) {
-    return this.promoCodeService.create(createPromoCodeDto);
+  @ApiOperation({ summary: "Create a new promo code" })
+  @ApiBody({ type: CreatePromoCodeDto })
+  @ApiResponse({ status: 201, description: "Promo code created successfully" })
+  create(@Body() dto: CreatePromoCodeDto) {
+    return this.promoCodeService.create(dto);
   }
 
   @Get()
+  @ApiOperation({ summary: "Get all promo codes" })
   findAll() {
     return this.promoCodeService.findAll();
   }
 
   @Get(":id")
-  findOne(@Param("id") id: string) {
-    return this.promoCodeService.findOne(+id);
+  @ApiOperation({ summary: "Get promo code by ID" })
+  @ApiParam({ name: "id", type: Number })
+  findOne(@Param("id", ParseIntPipe) id: number) {
+    return this.promoCodeService.findOne(id);
   }
 
   @Patch(":id")
+  @ApiOperation({ summary: "Update promo code by ID" })
+  @ApiParam({ name: "id", type: Number })
   update(
-    @Param("id") id: string,
-    @Body() updatePromoCodeDto: UpdatePromoCodeDto
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: UpdatePromoCodeDto
   ) {
-    return this.promoCodeService.update(+id, updatePromoCodeDto);
+    return this.promoCodeService.update(id, dto);
   }
 
   @Delete(":id")
-  remove(@Param("id") id: string) {
-    return this.promoCodeService.remove(+id);
+  @ApiOperation({ summary: "Delete promo code by ID" })
+  @ApiParam({ name: "id", type: Number })
+  remove(@Param("id", ParseIntPipe) id: number) {
+    return this.promoCodeService.remove(id);
   }
 }

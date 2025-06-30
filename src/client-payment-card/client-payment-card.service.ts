@@ -53,25 +53,46 @@ export class ClientPaymentCardService {
       expiry_year,
       is_default,
       is_active,
-      created_at: new Date(),
     });
 
     return this.cards.save(card);
   }
 
-  findAll() {
-    return this.cards.find();
+  async findAll(): Promise<ClientPaymentCard[]> {
+    return this.cards.find({ relations: ["client"] });
   }
 
-  findOne(id: number) {
-    return this.cards.findOne({ where: { id } });
+  async findOne(id: number): Promise<ClientPaymentCard> {
+    const card = await this.cards.findOne({
+      where: { id },
+      relations: ["client"],
+    });
+    if (!card) {
+      throw new BadRequestException(`Payment card with ID ${id} not found`);
+    }
+    return card;
   }
 
-  update(id: number, data: UpdateClientPaymentCardDto) {
-    return this.cards.update({ id }, data);
+  async update(
+    id: number,
+    data: UpdateClientPaymentCardDto
+  ): Promise<{ message: string }> {
+    const card = await this.cards.findOne({ where: { id } });
+    if (!card) {
+      throw new BadRequestException(`Payment card with ID ${id} not found`);
+    }
+
+    await this.cards.update({ id }, data);
+    return { message: "Payment card updated successfully" };
   }
 
-  remove(id: number) {
-    return this.cards.delete(id);
+  async remove(id: number): Promise<{ message: string }> {
+    const card = await this.cards.findOne({ where: { id } });
+    if (!card) {
+      throw new BadRequestException(`Payment card with ID ${id} not found`);
+    }
+
+    await this.cards.delete({ id });
+    return { message: "Payment card deleted successfully" };
   }
 }

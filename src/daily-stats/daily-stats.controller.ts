@@ -17,7 +17,6 @@ import { RoleGuard } from "../auth/role.guard";
 import { UserCategoryGuard } from "../auth/user.guard";
 
 @ApiTags("Daily Stats")
-@ApiBearerAuth()
 @UseGuards(RoleGuard, UserCategoryGuard)
 @Roles("admin")
 @Controller("daily-stats")

@@ -6,6 +6,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
   UnauthorizedException,
+  InternalServerErrorException,
 } from "@nestjs/common";
 import { CreateAdminDto } from "./dto/create-admin.dto";
 import { UpdateAdminDto } from "./dto/update-admin.dto";
@@ -31,18 +32,14 @@ export class AdminService {
     private readonly jwtService: JwtTokenService
   ) {}
 
-  async create(createAdminDto: CreateAdminDto): Promise<{
-    message: string;
-    admin: Partial<Admin>;
-    activation_link: string;
-  }> {
+  async create(createAdminDto: CreateAdminDto) {
     const { email, first_name, last_name, role, phone_number } = createAdminDto;
 
     const existingAdmin = await this.adminRepository.findOne({
       where: { email },
     });
     if (existingAdmin) {
-      throw new BadRequestException("An admin with this email already exists");
+      throw new BadRequestException("Admin with this email already exists");
     }
 
     const activation_link = uuidv4();
@@ -65,6 +62,7 @@ export class AdminService {
       });
 
       const savedAdmin = await manager.save(Admin, newAdmin);
+      this.logger.log(`Admin created: ${email}`);
 
       try {
         await this.mailService.sendMail(savedAdmin);
@@ -75,6 +73,7 @@ export class AdminService {
           activation_link_expires_at,
           ...adminResponse
         } = savedAdmin;
+
         return {
           admin: adminResponse,
           activation_link,
@@ -82,7 +81,9 @@ export class AdminService {
         };
       } catch (error) {
         this.logger.error("Email sending error", error.stack);
-        throw new ServiceUnavailableException("Error sending activation email");
+        throw new ServiceUnavailableException(
+          "Failed to send activation email"
+        );
       }
     });
   }
@@ -103,6 +104,7 @@ export class AdminService {
     });
 
     if (!admin) {
+      this.logger.warn("Invalid or expired activation attempt");
       throw new BadRequestException("Invalid or expired activation link");
     }
 
@@ -116,21 +118,29 @@ export class AdminService {
       password_set_at: new Date(),
     });
 
+    const updatedAdmin = await this.adminRepository.findOneBy({ id: admin.id });
+
+    if (!updatedAdmin) {
+      throw new InternalServerErrorException(
+        "Admin activation failed — record not found after update."
+      );
+    }
+
     const { accessToken, refreshToken } = this.jwtService.generateTokens(
       {
-        id: admin.id,
-        email: admin.email,
-        role: admin.role,
+        id: updatedAdmin.id,
+        email: updatedAdmin.email,
+        role: updatedAdmin.role,
         is_active: true,
       },
       process.env.ADMIN_REFRESH_TOKEN_KEY!,
       process.env.ADMIN_ACCESS_TOKEN_KEY!
     );
 
-    const updatedAdmin = await this.adminRepository.findOneBy({ id: admin.id });
+    updatedAdmin.refresh_token = await bcrypt.hash(refreshToken, 12);
+    await this.adminRepository.save(updatedAdmin);
 
-    admin.refresh_token = await bcrypt.hash(refreshToken, 12);
-    await this.adminRepository.save(updatedAdmin!);
+    this.logger.log(`Admin activated and signed in: ${updatedAdmin.email}`);
 
     res.cookie("refresh_token", refreshToken, {
       maxAge: Number(process.env.COOKIE_TIME),
@@ -138,14 +148,13 @@ export class AdminService {
     });
 
     return {
-      message:
-        "Password set successfully. Account activated. Admin signed in successfully",
-      admin_id: String(admin.id),
+      message: "Password set successfully. Account activated.",
+      admin_id: String(updatedAdmin.id),
       accessToken,
     };
   }
 
-  async resendActivationEmail(adminId: number): Promise<{ message: string }> {
+  async resendActivationEmail(adminId: number) {
     const admin = await this.adminRepository.findOne({
       where: {
         id: adminId,
@@ -163,37 +172,32 @@ export class AdminService {
 
     try {
       await this.mailService.sendMail(admin);
+      this.logger.log(`Resent activation email to admin: ${admin.email}`);
       return { message: "Activation email resent successfully" };
     } catch (error) {
-      this.logger.error("Email resending error", error.stack);
-      throw new ServiceUnavailableException("Error sending activation email");
+      this.logger.error("Failed to resend activation email", error.stack);
+      throw new ServiceUnavailableException("Failed to send activation email");
     }
   }
 
-  async findAll(): Promise<Partial<Admin>[]> {
+  async findAll() {
     const admins = await this.adminRepository.find();
     if (!admins.length) {
-      throw new NotFoundException("No admins found");
+      throw new NotFoundException("No admins found in the system");
     }
     return admins;
   }
 
-  async findOne(id: number): Promise<Partial<Admin>> {
+  async findOne(id: number) {
     const admin = await this.adminRepository.findOneBy({ id });
-
     if (!admin) {
       throw new BadRequestException(`Admin with ID ${id} not found`);
     }
-
     return admin;
   }
 
-  async update(
-    id: number,
-    updateAdminDto: UpdateAdminDto
-  ): Promise<{ message: string }> {
+  async update(id: number, updateAdminDto: UpdateAdminDto) {
     const admin = await this.adminRepository.findOne({ where: { id } });
-
     if (!admin) {
       throw new BadRequestException(`Admin with ID ${id} not found`);
     }
@@ -203,18 +207,19 @@ export class AdminService {
       updated_at: new Date(),
     });
 
+    this.logger.log(`Admin updated: ID ${id}`);
     return { message: `Admin with ID ${id} updated successfully` };
   }
 
-  async remove(id: number): Promise<{ message: string }> {
+  async remove(id: number) {
     const admin = await this.adminRepository.findOne({ where: { id } });
-
     if (!admin) {
       throw new BadRequestException(`Admin with ID ${id} not found`);
     }
 
     await this.adminRepository.delete(id);
 
+    this.logger.log(`Admin deleted: ID ${id}`);
     return { message: `Admin with ID ${id} deleted successfully` };
   }
 
@@ -222,19 +227,15 @@ export class AdminService {
     const { email, password } = signInDto;
     const admin = await this.adminRepository.findOneBy({ email });
 
-    if (!admin) {
-      throw new NotFoundException("Incorrect email or password");
-    }
-
-    if (!admin.password_hash) {
-      throw new BadRequestException(
-        "Account is not activated or password not set"
-      );
+    if (!admin || !admin.password_hash) {
+      this.logger.warn(`Failed login attempt: ${email}`);
+      throw new BadRequestException("Invalid email or password");
     }
 
     const isPasswordValid = await bcrypt.compare(password, admin.password_hash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException("Incorrect email or password");
+      this.logger.warn(`Invalid password for admin: ${email}`);
+      throw new UnauthorizedException("Invalid email or password");
     }
 
     const { accessToken, refreshToken } = this.jwtService.generateTokens(
@@ -255,6 +256,8 @@ export class AdminService {
       maxAge: Number(process.env.COOKIE_TIME),
       httpOnly: true,
     });
+
+    this.logger.log(`Admin signed in: ${admin.email}`);
 
     return {
       message: "Admin signed in successfully",
@@ -266,7 +269,7 @@ export class AdminService {
   async refreshTokens(req: Request, res: Response) {
     const refresh_token = req.cookies["refresh_token"];
     if (!refresh_token) {
-      throw new BadRequestException("Refresh token not found");
+      throw new BadRequestException("Refresh token missing in cookies");
     }
 
     const payload = await this.jwtService.verifyRefreshToken(
@@ -274,14 +277,16 @@ export class AdminService {
       process.env.ADMIN_REFRESH_TOKEN_KEY!
     );
 
-    const [admin] = await this.adminRepository.findBy({ id: payload.id });
-
+    const admin = await this.adminRepository.findOneBy({ id: payload.id });
     if (!admin || !admin.refresh_token) {
-      throw new UnauthorizedException("Admin not found or not logged in");
+      throw new UnauthorizedException("Admin not found or session invalid");
     }
 
     const isValid = await bcrypt.compare(refresh_token, admin.refresh_token);
-    if (!isValid) throw new UnauthorizedException("Incorrect refresh token");
+    if (!isValid) {
+      this.logger.warn(`Invalid refresh token for admin ID: ${payload.id}`);
+      throw new UnauthorizedException("Invalid refresh token");
+    }
 
     const { accessToken, refreshToken } = this.jwtService.generateTokens(
       {
@@ -302,6 +307,8 @@ export class AdminService {
       httpOnly: true,
     });
 
+    this.logger.log(`Tokens refreshed for admin ID: ${admin.id}`);
+
     return {
       message: "Tokens refreshed successfully",
       admin_id: String(admin.id),
@@ -312,24 +319,24 @@ export class AdminService {
   async signOut(req: Request, res: Response) {
     const refreshToken = req.cookies["refresh_token"];
     if (!refreshToken) {
-      throw new BadRequestException("Refresh token missing");
+      throw new BadRequestException("Refresh token not found in cookies");
     }
 
-    const userData = await this.jwtService.verifyRefreshToken(
+    const payload = await this.jwtService.verifyRefreshToken(
       refreshToken,
       process.env.ADMIN_REFRESH_TOKEN_KEY!
     );
 
-    const user = await this.adminRepository.findOneBy({ id: userData.id });
-    if (!user) {
-      throw new ForbiddenException("User not found");
+    const admin = await this.adminRepository.findOneBy({ id: payload.id });
+    if (!admin) {
+      throw new ForbiddenException("Admin not found during logout");
     }
 
-    user.refresh_token = "";
-    await this.adminRepository.save(user);
-
+    admin.refresh_token = "";
+    await this.adminRepository.save(admin);
     res.clearCookie("refresh_token");
 
-    return { message: "User signed out" };
+    this.logger.log(`Admin signed out: ${admin.email}`);
+    return { message: "User signed out successfully" };
   }
 }

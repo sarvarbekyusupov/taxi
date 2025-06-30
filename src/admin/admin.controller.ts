@@ -12,6 +12,8 @@ import {
   HttpStatus,
   HttpCode,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from "@nestjs/common";
 import { AdminService } from "./admin.service";
 import { CreateAdminDto } from "./dto/create-admin.dto";
@@ -31,6 +33,7 @@ import { Admin } from "./entities/admin.entity";
 import { Roles } from "../common/decorators/role.decorator";
 import { RoleGuard } from "../auth/role.guard";
 import { UserCategoryGuard } from "../auth/user.guard";
+import { RateLimitGuard } from "../auth/rate-limit.guard";
 
 @ApiTags("admin")
 @Controller("admin")
@@ -39,8 +42,7 @@ export class AdminController {
 
   @Post()
   @UseGuards(RoleGuard)
-  @Roles("super_admin")
-  @ApiBearerAuth()
+  @Roles("super_admin") // ✅ Critical route secured
   @ApiOperation({ summary: "Create a new admin" })
   @ApiBody({ type: CreateAdminDto })
   @ApiResponse({
@@ -62,7 +64,6 @@ export class AdminController {
   @Get()
   @UseGuards(RoleGuard)
   @Roles("super_admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Retrieve all admins" })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -80,7 +81,6 @@ export class AdminController {
   @Get(":admin_id")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("admin", "super_admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Retrieve an admin by ID" })
   @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiResponse({
@@ -99,7 +99,6 @@ export class AdminController {
   @Patch(":admin_id")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("admin", "super_admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Update an admin" })
   @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiBody({ type: UpdateAdminDto })
@@ -121,7 +120,6 @@ export class AdminController {
   @Delete(":admin_id")
   @UseGuards(RoleGuard)
   @Roles("super_admin")
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Delete an admin" })
   @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiResponse({
@@ -137,6 +135,7 @@ export class AdminController {
   }
 
   @Post("activate")
+  @UseGuards(RateLimitGuard)
   @ApiOperation({ summary: "Activate admin account and set password" })
   @ApiBody({ type: SetPasswordDto })
   @ApiResponse({
@@ -155,6 +154,7 @@ export class AdminController {
   }
 
   @Post("signin")
+  @UseGuards(RateLimitGuard)
   @ApiOperation({ summary: "Sign in an admin" })
   @ApiBody({ type: SignInDto })
   @ApiResponse({
@@ -207,9 +207,8 @@ export class AdminController {
   }
 
   @Post(":admin_id/resend-activation")
-  @UseGuards(RoleGuard)
   @Roles("super_admin")
-  @ApiBearerAuth()
+  @UseGuards(RateLimitGuard)
   @ApiOperation({ summary: "Resend activation email" })
   @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiResponse({

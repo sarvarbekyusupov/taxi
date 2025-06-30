@@ -3,7 +3,7 @@ import { IsNotEmpty, IsPhoneNumber } from "class-validator";
 
 export class RequestOtpDto {
   @ApiProperty({ example: "+11234567890" })
-  @IsPhoneNumber()
+  @IsPhoneNumber("UZ", { message: "Phone number must be valid for Uzbekistan" })
   phone_number: string;
 
   @ApiProperty({ example: "John Doe" })

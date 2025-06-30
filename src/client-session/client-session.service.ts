@@ -1,9 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { ClientSession } from "./entities/client-session.entity";
 import { CreateClientSessionDto } from "./dto/create-client-session.dto";
-import { UpdateClientSessionDto } from "./dto/update-client-session.dto";
 import { Client } from "../client/entities/client.entity";
 
 @Injectable()
@@ -13,20 +12,21 @@ export class ClientSessionService {
     private readonly sessions: Repository<ClientSession>,
 
     @InjectRepository(Client)
-    private clientsRepository: Repository<Client>
+    private readonly clientsRepository: Repository<Client>
   ) {}
 
-  async create(createDto: CreateClientSessionDto): Promise<ClientSession> {
+  async create(dto: CreateClientSessionDto): Promise<ClientSession> {
     const {
       client_id,
-      refresh_token,
+      refresh_token, // already hashed!
       device_id,
       device_type,
       fcm_token,
       is_active,
       expires_at,
-    } = createDto;
+    } = dto;
 
+    // 1. Check if client exists
     const client = await this.clientsRepository.findOne({
       where: { id: client_id },
     });
@@ -34,9 +34,10 @@ export class ClientSessionService {
       throw new BadRequestException("Client not found");
     }
 
+    // 2. Create new session entity
     const session = this.sessions.create({
       client,
-      refresh_token,
+      refresh_token, // hashed value passed from calling service
       device_id,
       device_type,
       fcm_token,
@@ -45,7 +46,8 @@ export class ClientSessionService {
       created_at: new Date(),
     });
 
-    return this.sessions.save(session);
+    // 3. Save session
+    return await this.sessions.save(session);
   }
 
   async findAll(): Promise<ClientSession[]> {
@@ -54,17 +56,19 @@ export class ClientSessionService {
 
   async findOne(id: number): Promise<ClientSession> {
     const session = await this.sessions.findOne({ where: { id } });
-    if (!session) throw new NotFoundException(`Session #${id} not found`);
+    if (!session) {
+      throw new BadRequestException(`Session with ID ${id} not found`);
+    }
     return session;
   }
 
   async update(
     id: number,
-    updateDto: UpdateClientSessionDto
+    dto: Partial<ClientSession>
   ): Promise<ClientSession> {
-    const session = await this.sessions.preload({ id, ...updateDto });
-    if (!session) throw new NotFoundException(`Session #${id} not found`);
-    return this.sessions.save(session);
+    const existing = await this.findOne(id);
+    const updated = this.sessions.merge(existing, dto);
+    return this.sessions.save(updated);
   }
 
   async remove(id: number): Promise<void> {

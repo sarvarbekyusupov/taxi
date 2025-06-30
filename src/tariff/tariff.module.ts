@@ -7,8 +7,8 @@ import { ServiceArea } from '../service-areas/entities/service-area.entity';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports:[TypeOrmModule.forFeature([Tariff, ServiceArea]), AuthModule],
+  imports: [TypeOrmModule.forFeature([Tariff, ServiceArea]), AuthModule],
   controllers: [TariffController],
-  providers: [TariffService],
+  providers: [TariffService, ],
 })
 export class TariffModule {}
