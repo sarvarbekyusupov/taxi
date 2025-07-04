@@ -17,17 +17,17 @@ export class CreateDriverDto {
   @ApiProperty({ example: "John" })
   @IsString()
   @IsNotEmpty()
-  first_name: string;
+  first_name?: string;
 
   @ApiProperty({ example: "Doe" })
   @IsString()
   @IsNotEmpty()
-  last_name: string;
+  last_name?: string;
 
   @ApiProperty({ example: "DL1234567890" })
   @IsString()
   @IsNotEmpty()
-  driver_license_number: string;
+  driver_license_number?: string;
 }
 
 

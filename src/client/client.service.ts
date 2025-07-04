@@ -81,6 +81,7 @@ export class ClientService {
         new_otp: new_otp,
       };
     } catch (error) {
+      console.error(error);
       throw new BadRequestException("Failed to send OTP");
     }
   }
@@ -89,34 +90,36 @@ export class ClientService {
   async verifyOtpAndAuth(verifyOtpDto: VerifyOtpDto, res: Response) {
     const { phone_number, otp, name } = verifyOtpDto;
 
-    // Verify the OTP
+    // Step 1: Verify the OTP
     const isValidOtp = await this.otp.verifyOtp(phone_number, otp);
     if (!isValidOtp) {
       throw new UnauthorizedException("Invalid or expired OTP");
     }
 
-    // Find existing client
+    // Step 2: Check if client already exists
     let client = await this.clients.findOneBy({ phone_number });
     let isNew = false;
 
-    // If client doesn't exist, create new one
+    // Step 3: If not found, register new client
     if (!client) {
-      if (!name || name.trim().length === 0) {
-        throw new BadRequestException("Name is required for new users");
-      }
-
       client = this.clients.create({
         phone_number,
-        name: name.trim(),
+        name: name?.trim() || null, // allow null for new users
         is_active: true,
         is_verified: true,
       });
 
       client = await this.clients.save(client);
       isNew = true;
+    } else {
+      // Step 4: Update is_verified = true if it was false
+      if (!client.is_verified) {
+        await this.clients.update({ id: client.id }, { is_verified: true });
+        client.is_verified = true; // reflect update in local object
+      }
     }
 
-    // Generate tokens
+    // Step 5: Generate tokens
     const { accessToken, refreshToken } = this.jwtService.generateTokens(
       {
         id: client.id,
@@ -129,28 +132,28 @@ export class ClientService {
       process.env.CLIENT_ACCESS_TOKEN_KEY!
     );
 
-    // Hash and store refresh token
+    // Step 6: Hash and store refresh token in DB
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 12);
     await this.clients.update(
       { id: client.id },
       { refresh_token: hashedRefreshToken }
     );
 
-    // Set secure cookie
+    // Step 7: Set refresh token as secure HTTP-only cookie
     res.cookie("refresh_token", refreshToken, {
       maxAge: Number(process.env.COOKIE_TIME),
       httpOnly: true,
     });
 
+    // Step 8: Return response
     return {
-      message: client
-        ? "Login successful"
-        : "Registration and login successful",
+      message: isNew ? "Registration and login successful" : "Login successful",
       client: {
         id: client.id,
         phone_number: client.phone_number,
-        name: client.name,
+        name: isNew ? null : client.name,
         is_active: client.is_active,
+        is_verified: client.is_verified,
       },
       accessToken,
     };

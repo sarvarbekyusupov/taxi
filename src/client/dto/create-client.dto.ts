@@ -6,6 +6,8 @@ import {
   IsInt,
   IsPhoneNumber,
   IsNotEmpty,
+  IsDateString,
+  IsIn,
 } from "class-validator";
 
 export class CreateClientDto {
@@ -23,4 +25,20 @@ export class CreateClientDto {
   @IsString()
   profile_photo_url?: string;
 
+  @ApiProperty({
+    example: "1995-08-15",
+    required: false,
+  })
+  @IsOptional()
+  @IsDateString()
+  birthday?: string;
+
+  @ApiProperty({
+    example: "male",
+    required: false,
+    enum: ["male", "female"],
+  })
+  @IsOptional()
+  @IsIn(["male", "female"])
+  gender?: "male" | "female";
 }
