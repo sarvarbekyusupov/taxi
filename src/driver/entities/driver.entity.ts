@@ -19,11 +19,11 @@ export class Driver {
   @ApiProperty({ example: "+1234567890" })
   phone_number: string;
 
-  @Column()
+  @Column({ nullable: true })
   @ApiProperty({ example: "John" })
   first_name: string;
 
-  @Column()
+  @Column({ nullable: true })
   @ApiProperty({ example: "Doe" })
   last_name: string;
 
@@ -31,7 +31,7 @@ export class Driver {
   @ApiProperty({ example: "https://example.com/photo.jpg", required: false })
   profile_photo_url?: string;
 
-  @Column()
+  @Column({ nullable: true })
   @ApiProperty({ example: "DL1234567890" })
   driver_license_number: string;
 

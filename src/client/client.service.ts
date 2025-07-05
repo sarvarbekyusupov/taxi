@@ -3,11 +3,12 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Client } from "./entities/client.entity";
-import { CreateClientDto } from "./dto/create-client.dto";
+import { CompleteProfileDto, CreateClientDto } from "./dto/create-client.dto";
 import { UpdateClientDto } from "./dto/update-client.dto";
 import { OtpService } from "../otp/otp.service";
 import { JwtTokenService } from "../auth/jwt.service";
@@ -37,7 +38,7 @@ export class ClientService {
   async findOne(id: number): Promise<Client> {
     const client = await this.clients.findOneBy({ id });
     if (!client) {
-      throw new BadRequestException(`Client with ID ${id} not found`);
+      throw new NotFoundException(`Client with ID ${id} not found`);
     }
     return client;
   }
@@ -48,7 +49,7 @@ export class ClientService {
   ): Promise<{ message: string }> {
     const existingClient = await this.clients.findOneBy({ id });
     if (!existingClient) {
-      throw new BadRequestException(`Client with ID ${id} not found`);
+      throw new NotFoundException(`Client with ID ${id} not found`);
     }
 
     await this.clients.update({ id }, updateClientDto);
@@ -58,7 +59,7 @@ export class ClientService {
   async remove(id: number): Promise<{ message: string }> {
     const client = await this.clients.findOneBy({ id });
     if (!client) {
-      throw new BadRequestException(`Client with ID ${id} not found`);
+      throw new NotFoundException(`Client with ID ${id} not found`);
     }
 
     await this.clients.delete(id);
@@ -76,7 +77,7 @@ export class ClientService {
 
       return {
         message: "OTP sent successfully",
-        requires_name: !existingClient, // Frontend knows if name is needed
+        requires_registration: !existingClient, // Frontend knows if name is needed
         phone_number,
         new_otp: new_otp,
       };
@@ -148,6 +149,8 @@ export class ClientService {
     // Step 8: Return response
     return {
       message: isNew ? "Registration and login successful" : "Login successful",
+      requires_registration: isNew,
+
       client: {
         id: client.id,
         phone_number: client.phone_number,
@@ -245,25 +248,11 @@ export class ClientService {
     };
   }
 
-  async getProfile(refreshToken: string) {
-    const decoded = await this.jwtService.verifyRefreshToken(
-      refreshToken,
-      process.env.CLIENT_REFRESH_TOKEN_KEY!
-    );
+  async completeProfile(clientId: number, dto: CompleteProfileDto) {
+    const client = await this.clients.findOneBy({ id: clientId });
+    if (!client) throw new NotFoundException("Client not found");
 
-    const client = await this.clients.findOneBy({ id: decoded.id });
-    if (!client || !client.refresh_token) {
-      throw new UnauthorizedException("Invalid refresh token");
-    }
-
-    const isValid = await bcrypt.compare(refreshToken, client.refresh_token);
-    if (!isValid) throw new UnauthorizedException("Invalid refresh token");
-
-    return {
-      id: client.id,
-      phone_number: client.phone_number,
-      name: client.name,
-      is_active: client.is_active,
-    };
+    await this.clients.update({ id: clientId }, dto);
+    return { message: "Profile completed successfully" };
   }
 }

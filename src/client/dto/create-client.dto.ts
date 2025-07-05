@@ -8,12 +8,13 @@ import {
   IsNotEmpty,
   IsDateString,
   IsIn,
+  IsEnum,
 } from "class-validator";
 
 export class CreateClientDto {
   @ApiProperty({ example: "+1234567890" })
   @IsPhoneNumber("UZ")
-  @IsNotEmpty()
+  @IsOptional()
   phone_number: string;
 
   @ApiProperty({ example: "John Doe" })
@@ -40,5 +41,23 @@ export class CreateClientDto {
   })
   @IsOptional()
   @IsIn(["male", "female"])
+  gender?: "male" | "female";
+}
+
+export class CompleteProfileDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  profile_photo_url?: string;
+
+  @IsOptional()
+  @IsDateString()
+  birthday?: string;
+
+  @IsOptional()
+  @IsEnum(["male", "female"])
   gender?: "male" | "female";
 }

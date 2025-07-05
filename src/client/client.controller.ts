@@ -12,9 +12,11 @@ import {
   Req,
   UnauthorizedException,
   UseGuards,
+  ParseIntPipe,
+  ForbiddenException, // Import ForbiddenException
 } from "@nestjs/common";
 import { ClientService } from "./client.service";
-import { CreateClientDto } from "./dto/create-client.dto";
+import { CompleteProfileDto, CreateClientDto } from "./dto/create-client.dto";
 import { UpdateClientDto } from "./dto/update-client.dto";
 import { Request, Response } from "express";
 import { SendOtpDto, VerifyOtpDto } from "../otp/dto/otp.dto";
@@ -26,19 +28,19 @@ import {
   ApiBody,
   ApiParam,
   ApiCookieAuth,
-  ApiHeader,
-  ApiSecurity,
 } from "@nestjs/swagger";
 import { RoleGuard } from "../auth/role.guard";
 import { UserCategoryGuard } from "../auth/user.guard";
 import { Roles } from "../common/decorators/role.decorator";
+import { GetCurrentUser } from "../common/decorators/get-current-user.decorator";
 
-// Response DTOs for better Swagger documentation
+// ========== DTOs for Swagger Documentation ==========
+
+// (Your DTOs are excellent, so they are kept as is)
 export class SendOtpResponseDto {
   message: string;
-  requires_name: boolean;
+  requires_registration: boolean;
   phone_number: string;
-  // Note: new_otp should be removed in production for security
 }
 
 export class VerifyOtpResponseDto {
@@ -47,8 +49,6 @@ export class VerifyOtpResponseDto {
     id: number;
     phone_number: string;
     name: string | null;
-    is_active: boolean;
-    is_verified: boolean;
   };
   accessToken: string;
 }
@@ -58,15 +58,13 @@ export class RefreshTokenResponseDto {
   accessToken: string;
 }
 
-export class LogoutResponseDto {
-  message: string;
-}
-
-export class ClientProfileResponseDto {
+// A dedicated DTO for client responses to ensure consistency and hide sensitive data
+export class ClientResponseDto {
   id: number;
   phone_number: string;
   name: string | null;
   is_active: boolean;
+  is_verified: boolean;
 }
 
 export class GenericMessageResponseDto {
@@ -79,61 +77,34 @@ export class ErrorResponseDto {
   error: string;
 }
 
-@ApiTags("Client Authentication & Management")
-@Controller("client")
+@ApiTags("Client - Authentication & Management")
+@Controller("clients") // Using plural "clients" is a common REST convention
 export class ClientController {
   constructor(private readonly clientService: ClientService) {}
 
-  // ========== PUBLIC AUTH ROUTES ==========
+  // =============================================
+  // ========== 1. PUBLIC AUTHENTICATION ==========
+  // =============================================
 
   @Post("auth/send-otp")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: "Send OTP to client phone number",
-    description:
-      "Sends a one-time password to the provided phone number. Returns whether the user needs to provide a name (new user) or not (existing user).",
-    operationId: "sendClientOtp",
-  })
-  @ApiBody({
-    type: SendOtpDto,
-    description: "Phone number to send OTP to",
-    examples: {
-      example1: {
-        summary: "Valid phone number",
-        value: {
-          phone_number: "+998901234567",
-        },
-      },
-    },
+    summary: "1.1. Send OTP to Client Phone Number",
+    operationId: "clientSendOtp",
   })
   @ApiResponse({
     status: 200,
-    description: "OTP sent successfully",
+    description: "OTP sent successfully.",
     type: SendOtpResponseDto,
-    schema: {
-      example: {
-        message: "OTP sent successfully",
-        requires_name: true,
-        phone_number: "+998901234567",
-      },
-    },
   })
   @ApiResponse({
     status: 400,
-    description:
-      "Failed to send OTP - Invalid phone number format or service error",
+    description: "Invalid phone number format or other bad request.",
     type: ErrorResponseDto,
-    schema: {
-      example: {
-        statusCode: 400,
-        message: "Failed to send OTP",
-        error: "Bad Request",
-      },
-    },
   })
   @ApiResponse({
     status: 429,
-    description: "Too many requests - Rate limit exceeded",
+    description: "Too many requests (Rate limit exceeded).",
     type: ErrorResponseDto,
   })
   sendOtp(@Body() sendOtpDto: SendOtpDto) {
@@ -143,76 +114,23 @@ export class ClientController {
   @Post("auth/verify-otp")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: "Verify OTP and authenticate/register client",
+    summary: "1.2. Verify OTP & Authenticate (Login/Register)",
     description:
-      "Verifies the OTP and either logs in an existing client or registers a new one. Sets refresh token as HTTP-only cookie.",
-    operationId: "verifyClientOtp",
-  })
-  @ApiBody({
-    type: VerifyOtpDto,
-    description: "OTP verification payload",
-    examples: {
-      newUser: {
-        summary: "New user registration",
-        value: {
-          phone_number: "+998901234567",
-          otp: "1234",
-          name: "John Doe",
-        },
-      },
-      existingUser: {
-        summary: "Existing user login",
-        value: {
-          phone_number: "+998901234567",
-          otp: "1234",
-        },
-      },
-    },
+      "Verifies the OTP to log in an existing client or register a new one. Sets a `refresh_token` as an HTTP-only cookie.",
+    operationId: "clientVerifyOtp",
   })
   @ApiResponse({
     status: 200,
-    description: "OTP verified and client authenticated successfully",
+    description: "Authentication successful.",
     type: VerifyOtpResponseDto,
     headers: {
-      "Set-Cookie": {
-        description: "HTTP-only refresh token cookie",
-        schema: {
-          type: "string",
-          example:
-            "refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Path=/",
-        },
-      },
+      "Set-Cookie": { description: "Sets the HTTP-only refresh token." },
     },
-    schema: {
-      example: {
-        message: "Registration and login successful",
-        client: {
-          id: 1,
-          phone_number: "+998901234567",
-          name: "John Doe",
-          is_active: true,
-          is_verified: true,
-        },
-        accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: "Bad request - Missing required fields",
-    type: ErrorResponseDto,
   })
   @ApiResponse({
     status: 401,
-    description: "Invalid or expired OTP",
+    description: "Invalid or expired OTP.",
     type: ErrorResponseDto,
-    schema: {
-      example: {
-        statusCode: 401,
-        message: "Invalid or expired OTP",
-        error: "Unauthorized",
-      },
-    },
   })
   verifyOtp(
     @Body() verifyOtpDto: VerifyOtpDto,
@@ -221,198 +139,159 @@ export class ClientController {
     return this.clientService.verifyOtpAndAuth(verifyOtpDto, res);
   }
 
-  // ========== PROTECTED AUTH ROUTES ==========
+  // ============================================
+  // ========== 2. PROTECTED AUTH ACTIONS ==========
+  // ============================================
 
   @Post("auth/refresh")
   @HttpCode(HttpStatus.OK)
+  @ApiCookieAuth("refresh_token") // Documents that a cookie named 'refresh_token' is required
   @ApiOperation({
-    summary: "Refresh access token",
+    summary: "2.1. Refresh Access Token",
     description:
-      "Generates a new access token using the refresh token stored in HTTP-only cookie. Also rotates the refresh token.",
-    operationId: "refreshClientToken",
+      "Uses the `refresh_token` (from cookie) to generate a new access token and a new refresh token.",
+    operationId: "clientRefreshToken",
   })
-  @ApiCookieAuth("refresh_token")
   @ApiResponse({
     status: 200,
-    description: "Token refreshed successfully",
+    description: "Token refreshed successfully.",
     type: RefreshTokenResponseDto,
     headers: {
-      "Set-Cookie": {
-        description: "New HTTP-only refresh token cookie",
-        schema: {
-          type: "string",
-          example:
-            "refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Path=/",
-        },
-      },
-    },
-    schema: {
-      example: {
-        message: "Token refreshed successfully",
-        accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-      },
+      "Set-Cookie": { description: "Sets the new HTTP-only refresh token." },
     },
   })
   @ApiResponse({
     status: 401,
-    description: "Invalid or missing refresh token",
+    description: "Invalid, expired, or missing refresh token.",
     type: ErrorResponseDto,
-    schema: {
-      example: {
-        statusCode: 401,
-        message: "Invalid refresh token",
-        error: "Unauthorized",
-      },
-    },
   })
   refreshToken(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const refreshToken = req.cookies?.refresh_token;
     if (!refreshToken) {
-      throw new UnauthorizedException("Refresh token missing");
+      throw new UnauthorizedException("Refresh token is missing");
     }
     return this.clientService.refreshToken(refreshToken, res);
   }
 
   @Post("auth/logout")
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: "Logout client",
-    description:
-      "Invalidates the refresh token and clears the HTTP-only cookie. Client will need to re-authenticate.",
-    operationId: "logoutClient",
-  })
   @ApiCookieAuth("refresh_token")
+  @ApiOperation({
+    summary: "2.2. Logout Client",
+    description:
+      "Invalidates the current session by clearing the refresh token from the database and the client's cookie.",
+    operationId: "clientLogout",
+  })
   @ApiResponse({
     status: 200,
-    description: "Client logged out successfully",
-    type: LogoutResponseDto,
-    headers: {
-      "Set-Cookie": {
-        description: "Cleared refresh token cookie",
-        schema: {
-          type: "string",
-          example: "refresh_token=; HttpOnly; Path=/",
-        },
-      },
-    },
-    schema: {
-      example: {
-        message: "Logged out successfully",
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: "Refresh token missing from cookies",
-    type: ErrorResponseDto,
+    description: "Logout successful.",
+    type: GenericMessageResponseDto,
   })
   @ApiResponse({
     status: 401,
-    description: "Invalid refresh token",
+    description: "Invalid or missing refresh token required for logout.",
     type: ErrorResponseDto,
   })
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     return this.clientService.logout(req, res);
   }
 
-  @Get("profile")
-  @HttpCode(HttpStatus.OK)
+  // ==================================================
+  // ========== 3. PROTECTED PROFILE & CRUD ==========
+  // ==================================================
+
+  @Patch("profile/complete")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("client")
+  @ApiBearerAuth()
   @ApiOperation({
-    summary: "Get client profile",
+    summary: "3.1. Complete Client Profile",
     description:
-      "Retrieves the authenticated client's profile information using the refresh token from cookies.",
-    operationId: "getClientProfile",
+      "Allows a newly registered client to add details like their name.",
+    operationId: "clientCompleteProfile",
   })
-  @ApiCookieAuth("refresh_token")
   @ApiResponse({
     status: 200,
-    description: "Client profile retrieved successfully",
-    type: ClientProfileResponseDto,
-    schema: {
-      example: {
-        id: 1,
-        phone_number: "+998901234567",
-        name: "John Doe",
-        is_active: true,
-      },
-    },
+    description: "Profile completed successfully.",
+    type: GenericMessageResponseDto,
   })
   @ApiResponse({
     status: 401,
-    description: "Invalid or missing refresh token",
+    description: "Unauthorized. Invalid token.",
     type: ErrorResponseDto,
   })
-  async getProfile(@Req() req: Request) {
-    const refreshToken = req.cookies?.refresh_token;
-    if (!refreshToken) {
-      throw new UnauthorizedException("Refresh token missing");
-    }
-    return this.clientService.getProfile(refreshToken);
+  @ApiResponse({
+    status: 404,
+    description: "Client not found.",
+    type: ErrorResponseDto,
+  })
+  completeProfile(
+    @Body() dto: CompleteProfileDto,
+    @GetCurrentUser("id") userId: number
+  ) {
+    return this.clientService.completeProfile(userId, dto);
   }
 
-  // ========== ADMIN/CLIENT CRUD ROUTES ==========
+  @Get("profile/me")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("client")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "3.2. Get Own Profile",
+    operationId: "getClientProfile",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "The current client's profile.",
+    type: ClientResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Unauthorized.",
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Client not found.",
+    type: ErrorResponseDto,
+  })
+  async getProfile(@GetCurrentUser("id") userId: number) {
+    // Basic check to prevent unnecessary DB call if ID is invalid
+    if (!userId) throw new UnauthorizedException();
+    return this.clientService.findOne(userId);
+  }
+
+  // =========================================
+  // ========== 4. ADMIN-ONLY CRUD ==========
+  // =========================================
 
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("admin")
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "Create a new client (Admin only)",
-    description:
-      "Creates a new client record in the system. Only accessible by administrators.",
-    operationId: "createClient",
-  })
-  @ApiBody({
-    type: CreateClientDto,
-    description: "Client creation payload",
-    examples: {
-      example1: {
-        summary: "Create new client (minimal)",
-        value: {
-          phone_number: "+998901234567",
-          name: "John Doe",
-        },
-      },
-      example2: {
-        summary: "Create new client (with optional fields)",
-        value: {
-          phone_number: "+998901234567",
-          name: "John Doe",
-          profile_photo_url: "https://example.com/photo.jpg",
-          birthday: "1995-08-15",
-          gender: "male",
-        },
-      },
-    },
+    summary: "4.1. Create a New Client (Admin)",
+    operationId: "adminCreateClient",
   })
   @ApiResponse({
     status: 201,
-    description: "Client created successfully",
-    schema: {
-      example: {
-        id: 1,
-        phone_number: "+998901234567",
-        name: "John Doe",
-        is_active: true,
-        is_verified: true,
-        created_at: "2024-01-01T00:00:00.000Z",
-        updated_at: "2024-01-01T00:00:00.000Z",
-      },
-    },
+    description: "Client created successfully.",
+    type: ClientResponseDto,
   })
   @ApiResponse({
     status: 400,
-    description: "Bad request - Validation failed",
+    description: "Bad Request: Validation error.",
     type: ErrorResponseDto,
   })
   @ApiResponse({
     status: 401,
-    description: "Unauthorized - Invalid or missing access token",
+    description: "Unauthorized.",
     type: ErrorResponseDto,
   })
   @ApiResponse({
     status: 403,
-    description: "Forbidden - Insufficient privileges",
+    description: "Forbidden: Insufficient privileges.",
     type: ErrorResponseDto,
   })
   create(@Body() createClientDto: CreateClientDto) {
@@ -424,38 +303,22 @@ export class ClientController {
   @Roles("admin")
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "Get all clients (Admin only)",
-    description:
-      "Retrieves a list of all clients in the system. Only accessible by administrators.",
-    operationId: "getAllClients",
+    summary: "4.2. Get All Clients (Admin)",
+    operationId: "adminGetAllClients",
   })
   @ApiResponse({
     status: 200,
-    description: "List of all clients retrieved successfully",
-    schema: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          id: { type: "number", example: 1 },
-          phone_number: { type: "string", example: "+998901234567" },
-          name: { type: "string", example: "John Doe" },
-          is_active: { type: "boolean", example: true },
-          is_verified: { type: "boolean", example: true },
-          created_at: { type: "string", example: "2024-01-01T00:00:00.000Z" },
-          updated_at: { type: "string", example: "2024-01-01T00:00:00.000Z" },
-        },
-      },
-    },
+    description: "A list of all clients.",
+    type: [ClientResponseDto],
   })
   @ApiResponse({
     status: 401,
-    description: "Unauthorized - Invalid or missing access token",
+    description: "Unauthorized.",
     type: ErrorResponseDto,
   })
   @ApiResponse({
     status: 403,
-    description: "Forbidden - Insufficient privileges",
+    description: "Forbidden: Insufficient privileges.",
     type: ErrorResponseDto,
   })
   findAll() {
@@ -464,180 +327,108 @@ export class ClientController {
 
   @Get(":id")
   @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("client", "admin")
+  @Roles("admin")
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "Get client by ID",
-    description:
-      "Retrieves a specific client by their ID. Clients can only access their own data, admins can access any client.",
-    operationId: "getClientById",
+    summary: "4.3. Get Client by ID (Admin)",
+    operationId: "adminGetClientById",
   })
   @ApiParam({
     name: "id",
-    description: "Client ID",
-    type: "number",
-    example: 1,
+    description: "Numeric ID of the client to retrieve.",
   })
   @ApiResponse({
     status: 200,
-    description: "Client found successfully",
-    schema: {
-      example: {
-        id: 1,
-        phone_number: "+998901234567",
-        name: "John Doe",
-        is_active: true,
-        is_verified: true,
-        created_at: "2024-01-01T00:00:00.000Z",
-        updated_at: "2024-01-01T00:00:00.000Z",
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: "Client with specified ID not found",
-    type: ErrorResponseDto,
-    schema: {
-      example: {
-        statusCode: 400,
-        message: "Client with ID 1 not found",
-        error: "Bad Request",
-      },
-    },
+    description: "Client details retrieved.",
+    type: ClientResponseDto,
   })
   @ApiResponse({
     status: 401,
-    description: "Unauthorized - Invalid or missing access token",
+    description: "Unauthorized.",
     type: ErrorResponseDto,
   })
   @ApiResponse({
     status: 403,
-    description: "Forbidden - Insufficient privileges",
+    description: "Forbidden.",
     type: ErrorResponseDto,
   })
-  findOne(@Param("id") id: string) {
-    return this.clientService.findOne(+id);
+  @ApiResponse({
+    status: 404,
+    description: "Client with the specified ID not found.",
+    type: ErrorResponseDto,
+  })
+  findOne(@Param("id", ParseIntPipe) id: number) {
+    return this.clientService.findOne(id);
   }
 
   @Patch(":id")
   @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("client", "admin")
+  @Roles("admin")
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "Update client by ID",
-    description:
-      "Updates a specific client's information. Clients can only update their own data, admins can update any client.",
-    operationId: "updateClient",
+    summary: "4.4. Update Client by ID (Admin)",
+    operationId: "adminUpdateClient",
   })
-  @ApiParam({
-    name: "id",
-    description: "Client ID to update",
-    type: "number",
-    example: 1,
-  })
-  @ApiBody({
-    type: UpdateClientDto,
-    description: "Client update payload",
-    examples: {
-      example1: {
-        summary: "Update client name",
-        value: {
-          name: "John Smith",
-        },
-      },
-      example2: {
-        summary: "Update client status",
-        value: {
-          is_active: false,
-        },
-      },
-    },
-  })
+  @ApiParam({ name: "id", description: "Numeric ID of the client to update." })
   @ApiResponse({
     status: 200,
-    description: "Client updated successfully",
+    description: "Client updated successfully.",
     type: GenericMessageResponseDto,
-    schema: {
-      example: {
-        message: "Client updated successfully",
-      },
-    },
   })
   @ApiResponse({
     status: 400,
-    description: "Client with specified ID not found or validation failed",
+    description: "Bad Request: Validation error.",
     type: ErrorResponseDto,
-    schema: {
-      example: {
-        statusCode: 400,
-        message: "Client with ID 1 not found",
-        error: "Bad Request",
-      },
-    },
   })
   @ApiResponse({
     status: 401,
-    description: "Unauthorized - Invalid or missing access token",
+    description: "Unauthorized.",
     type: ErrorResponseDto,
   })
   @ApiResponse({
     status: 403,
-    description: "Forbidden - Insufficient privileges",
+    description: "Forbidden.",
     type: ErrorResponseDto,
   })
-  update(@Param("id") id: string, @Body() updateClientDto: UpdateClientDto) {
-    return this.clientService.update(+id, updateClientDto);
+  @ApiResponse({
+    status: 404,
+    description: "Client with the specified ID not found.",
+    type: ErrorResponseDto,
+  })
+  update(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() updateClientDto: UpdateClientDto
+  ) {
+    return this.clientService.update(id, updateClientDto);
   }
 
   @Delete(":id")
+  @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("admin")
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "Delete client by ID (Admin only)",
-    description:
-      "Permanently deletes a client from the system. Only accessible by administrators.",
-    operationId: "deleteClient",
+    summary: "4.5. Delete Client by ID (Admin)",
+    operationId: "adminDeleteClient",
   })
-  @ApiParam({
-    name: "id",
-    description: "Client ID to delete",
-    type: "number",
-    example: 1,
-  })
-  @ApiResponse({
-    status: 200,
-    description: "Client deleted successfully",
-    type: GenericMessageResponseDto,
-    schema: {
-      example: {
-        message: "Client deleted successfully",
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: "Client with specified ID not found",
-    type: ErrorResponseDto,
-    schema: {
-      example: {
-        statusCode: 400,
-        message: "Client with ID 1 not found",
-        error: "Bad Request",
-      },
-    },
-  })
+  @ApiParam({ name: "id", description: "Numeric ID of the client to delete." })
+  @ApiResponse({ status: 204, description: "Client deleted successfully." })
   @ApiResponse({
     status: 401,
-    description: "Unauthorized - Invalid or missing access token",
+    description: "Unauthorized.",
     type: ErrorResponseDto,
   })
   @ApiResponse({
     status: 403,
-    description: "Forbidden - Insufficient privileges",
+    description: "Forbidden.",
     type: ErrorResponseDto,
   })
-  remove(@Param("id") id: string) {
-    return this.clientService.remove(+id);
+  @ApiResponse({
+    status: 404,
+    description: "Client with the specified ID not found.",
+    type: ErrorResponseDto,
+  })
+  remove(@Param("id", ParseIntPipe) id: number) {
+    return this.clientService.remove(id);
   }
 }

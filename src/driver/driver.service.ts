@@ -1,330 +1,3 @@
-// import {
-//   BadRequestException,
-//   Injectable,
-//   UnauthorizedException,
-// } from "@nestjs/common";
-// import { InjectRepository } from "@nestjs/typeorm";
-// import { Repository } from "typeorm";
-// import { Driver } from "./entities/driver.entity";
-// import { CreateDriverDto, VerifyDriverOtpDto } from "./dto/create-driver.dto";
-// import { UpdateDriverDto } from "./dto/update-driver.dto";
-// import { OtpService } from "../otp/otp.service";
-// import { JwtTokenService } from "../auth/jwt.service";
-// import { SendOtpDto, VerifyOtpDto } from "../otp/dto/otp.dto";
-// import * as bcrypt from "bcrypt";
-// import { Request, Response } from "express";
-
-// @Injectable()
-// export class DriverService {
-//   constructor(
-//     @InjectRepository(Driver)
-//     private readonly drivers: Repository<Driver>,
-//     private readonly otp: OtpService,
-//     private readonly jwtService: JwtTokenService
-//   ) {}
-
-//   async create(createDriverDto: CreateDriverDto) {
-//     const driver = this.drivers.create(createDriverDto);
-//     return await this.drivers.save(driver);
-//   }
-
-//   async findAll(): Promise<Driver[]> {
-//     return await this.drivers.find();
-//   }
-
-//   async findOne(id: number): Promise<Driver> {
-//     const driver = await this.drivers.findOneBy({ id });
-//     if (!driver) {
-//       throw new BadRequestException(`Driver with ID ${id} not found`);
-//     }
-//     return driver;
-//   }
-
-//   async update(
-//     id: number,
-//     updateDriverDto: UpdateDriverDto
-//   ): Promise<{ message: string }> {
-//     const existingDriver = await this.drivers.findOneBy({ id });
-//     if (!existingDriver) {
-//       throw new BadRequestException(`Driver with ID ${id} not found`);
-//     }
-
-//     await this.drivers.update({ id }, updateDriverDto);
-//     return { message: "Driver updated successfully" };
-//   }
-
-//   async remove(id: number): Promise<{ message: string }> {
-//     const driver = await this.drivers.findOneBy({ id });
-//     if (!driver) {
-//       throw new BadRequestException(`Driver with ID ${id} not found`);
-//     }
-
-//     await this.drivers.delete(id);
-//     return { message: "Driver deleted successfully" };
-//   }
-
-//   // Step 1: Send OTP to phone number
-//   async sendOtp(sendOtpDto: SendOtpDto) {
-//     const { phone_number } = sendOtpDto;
-
-//     try {
-//       // Check if driver exists to inform frontend
-//       const existingDriver = await this.drivers.findOneBy({ phone_number });
-//       const new_otp = await this.otp.storeOtp(phone_number);
-
-//       return {
-//         message: "OTP sent successfully",
-//         requires_registration: !existingDriver, // Frontend knows if registration is needed
-//         phone_number,
-//         new_otp: new_otp, // For testing/demo only — remove in production
-//       };
-//     } catch (error) {
-//       console.error(error);
-//       throw new BadRequestException("Failed to send OTP");
-//     }
-//   }
-
-//   // Step 2: Verify OTP and authenticate/register user
-//   // Step 2: Verify OTP and authenticate/register driver
-//   async verifyOtpAndAuth(verifyOtpDto: VerifyOtpDto, res: Response) {
-//     const { phone_number, otp } = verifyOtpDto;
-
-//     // Step 1: Verify OTP
-//     const isValidOtp = await this.otp.verifyOtp(phone_number, otp);
-//     if (!isValidOtp) {
-//       throw new UnauthorizedException("Invalid or expired OTP");
-//     }
-
-//     // Step 2: Check if driver exists
-//     let driver = await this.drivers.findOneBy({ phone_number });
-//     let isNew = false;
-
-//     // Step 3: Create driver if not found
-//     if (!driver) {
-//       driver = this.drivers.create({
-//         phone_number,
-//         is_active: true,
-//         is_verified: false, // Admin needs to verify driver later
-//       });
-
-//       driver = await this.drivers.save(driver);
-//       isNew = true;
-//     }
-
-//     // Step 4: Generate tokens
-//     const { accessToken, refreshToken } = this.jwtService.generateTokens(
-//       {
-//         id: driver.id,
-//         phone_number: driver.phone_number,
-//         role: "driver",
-//         is_active: driver.is_active,
-//         is_verified: driver.is_verified,
-//       },
-//       process.env.DRIVER_REFRESH_TOKEN_KEY!,
-//       process.env.DRIVER_ACCESS_TOKEN_KEY!
-//     );
-
-//     // Step 5: Hash and save refresh token
-//     const hashedRefreshToken = await bcrypt.hash(refreshToken, 12);
-//     await this.drivers.update(
-//       { id: driver.id },
-//       { refresh_token: hashedRefreshToken }
-//     );
-
-//     // Step 6: Set HTTP-only cookie
-//     res.cookie("refresh_token", refreshToken, {
-//       maxAge: Number(process.env.COOKIE_TIME),
-//       httpOnly: true,
-//       secure: process.env.NODE_ENV === "production",
-//       sameSite: "strict",
-//     });
-
-//     // Step 7: Return response
-//     return {
-//       message: isNew ? "Registration and login successful" : "Login successful",
-//       driver: {
-//         id: driver.id,
-//         phone_number: driver.phone_number,
-//         first_name: driver.first_name,
-//         last_name: driver.last_name,
-//         driver_license_number: driver.driver_license_number,
-//         is_active: driver.is_active,
-//         is_verified: driver.is_verified,
-//         profile_complete: Boolean(
-//           driver.first_name && driver.last_name && driver.driver_license_number
-//         ),
-//       },
-//       accessToken,
-//     };
-//   }
-
-//   // Complete driver profile (separate endpoint after authentication)
-//   async completeProfile(
-//     driverId: number,
-//     profileData: {
-//       first_name: string;
-//       last_name: string;
-//       driver_license_number: string;
-//     }
-//   ) {
-//     const { first_name, last_name, driver_license_number } = profileData;
-
-//     if (!first_name || !last_name || !driver_license_number) {
-//       throw new BadRequestException("All profile fields are required");
-//     }
-
-//     const driver = await this.drivers.findOneBy({ id: driverId });
-//     if (!driver) {
-//       throw new BadRequestException("Driver not found");
-//     }
-
-//     await this.drivers.update(
-//       { id: driverId },
-//       {
-//         first_name: first_name.trim(),
-//         last_name: last_name.trim(),
-//         driver_license_number: driver_license_number.trim(),
-//       }
-//     );
-
-//     return {
-//       message: "Profile completed successfully",
-//       driver: {
-//         id: driver.id,
-//         phone_number: driver.phone_number,
-//         first_name: first_name.trim(),
-//         last_name: last_name.trim(),
-//         driver_license_number: driver_license_number.trim(),
-//         is_active: driver.is_active,
-//         is_verified: driver.is_verified,
-//         profile_complete: true,
-//       },
-//     };
-//   }
-
-//   // Refresh token endpoint
-//   async refreshToken(refreshToken: string, res: Response) {
-//     try {
-//       const decoded = await this.jwtService.verifyRefreshToken(
-//         refreshToken,
-//         process.env.DRIVER_REFRESH_TOKEN_KEY ||
-//           process.env.CLIENT_REFRESH_TOKEN_KEY!
-//       );
-
-//       // Find driver and verify stored refresh token
-//       const driver = await this.drivers.findOneBy({ id: decoded.id });
-//       if (!driver || !driver.refresh_token) {
-//         throw new UnauthorizedException("Invalid refresh token");
-//       }
-
-//       const isValidRefreshToken = await bcrypt.compare(
-//         refreshToken,
-//         driver.refresh_token
-//       );
-//       if (!isValidRefreshToken) {
-//         throw new UnauthorizedException("Invalid refresh token");
-//       }
-
-//       // Generate new tokens
-//       const { accessToken, refreshToken: newRefreshToken } =
-//         this.jwtService.generateTokens(
-//           {
-//             id: driver.id,
-//             phone_number: driver.phone_number,
-//             role: "driver",
-//             is_active: driver.is_active,
-//             is_verified: driver.is_verified,
-//           },
-//           process.env.DRIVER_REFRESH_TOKEN_KEY ||
-//             process.env.CLIENT_REFRESH_TOKEN_KEY!,
-//           process.env.DRIVER_ACCESS_TOKEN_KEY ||
-//             process.env.CLIENT_ACCESS_TOKEN_KEY!
-//         );
-
-//       // Update stored refresh token
-//       const hashedNewRefreshToken = await bcrypt.hash(newRefreshToken, 12);
-//       await this.drivers.update(
-//         { id: driver.id },
-//         { refresh_token: hashedNewRefreshToken }
-//       );
-
-//       // Set new cookie
-//       res.cookie("refresh_token", newRefreshToken, {
-//         maxAge: Number(process.env.COOKIE_TIME),
-//         httpOnly: true,
-//       });
-
-//       return {
-//         message: "Token refreshed successfully",
-//         accessToken,
-//       };
-//     } catch (error) {
-//       throw new UnauthorizedException("Invalid refresh token");
-//     }
-//   }
-
-//   // Logout
-//   async logout(req: Request, res: Response) {
-//     const refreshToken = req.cookies["refresh_token"];
-//     if (!refreshToken) {
-//       throw new BadRequestException("Refresh token missing");
-//     }
-
-//     const decoded = await this.jwtService.verifyRefreshToken(
-//       refreshToken,
-//       process.env.DRIVER_REFRESH_TOKEN_KEY ||
-//         process.env.CLIENT_REFRESH_TOKEN_KEY!
-//     );
-
-//     // Find driver and verify stored refresh token
-//     const driver = await this.drivers.findOneBy({ id: decoded.id });
-//     if (!driver || !driver.refresh_token) {
-//       throw new UnauthorizedException("Invalid refresh token");
-//     }
-
-//     // Clear refresh token in the database
-//     await this.drivers.update({ id: driver.id }, { refresh_token: null });
-
-//     // Clear refresh token cookie
-//     res.clearCookie("refresh_token");
-
-//     return {
-//       message: "Logged out successfully",
-//     };
-//   }
-
-//   async getProfile(refreshToken: string) {
-//     const decoded = await this.jwtService.verifyRefreshToken(
-//       refreshToken,
-//       process.env.DRIVER_REFRESH_TOKEN_KEY ||
-//         process.env.CLIENT_REFRESH_TOKEN_KEY!
-//     );
-
-//     const driver = await this.drivers.findOneBy({ id: decoded.id });
-//     if (!driver || !driver.refresh_token) {
-//       throw new UnauthorizedException("Invalid refresh token");
-//     }
-
-//     const isValid = await bcrypt.compare(refreshToken, driver.refresh_token);
-//     if (!isValid) throw new UnauthorizedException("Invalid refresh token");
-
-//     return {
-//       id: driver.id,
-//       phone_number: driver.phone_number,
-//       first_name: driver.first_name,
-//       last_name: driver.last_name,
-//       driver_license_number: driver.driver_license_number,
-//       is_active: driver.is_active,
-//       is_verified: driver.is_verified,
-//       profile_complete: !!(
-//         driver.first_name &&
-//         driver.last_name &&
-//         driver.driver_license_number
-//       ),
-//     };
-//   }
-// }
-
 import {
   BadRequestException,
   Injectable,
@@ -334,7 +7,7 @@ import {
   InternalServerErrorException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { IsNull, Not, Repository } from "typeorm";
 import { Driver } from "./entities/driver.entity";
 import { CreateDriverDto, VerifyDriverOtpDto } from "./dto/create-driver.dto";
 import { UpdateDriverDto } from "./dto/update-driver.dto";
@@ -545,7 +218,7 @@ export class DriverService {
         requires_registration: !existingDriver,
         phone_number,
         // Remove new_otp from production - only for testing
-        new_otp: new_otp
+        new_otp: new_otp,
       };
     } catch (error) {
       console.error("OTP sending error:", error);
@@ -584,10 +257,15 @@ export class DriverService {
       }
 
       // Step 4: Generate tokens
-      if (!process.env.DRIVER_REFRESH_TOKEN_KEY || !process.env.DRIVER_ACCESS_TOKEN_KEY) {
-        throw new InternalServerErrorException("JWT secret keys are not configured.");
+      if (
+        !process.env.DRIVER_REFRESH_TOKEN_KEY ||
+        !process.env.DRIVER_ACCESS_TOKEN_KEY
+      ) {
+        throw new InternalServerErrorException(
+          "JWT secret keys are not configured."
+        );
       }
-      
+
       const { accessToken, refreshToken } = this.jwtService.generateTokens(
         {
           id: driver.id,
@@ -620,6 +298,8 @@ export class DriverService {
         message: isNew
           ? "Registration and login successful"
           : "Login successful",
+        requires_registration: isNew,
+
         driver: {
           id: driver.id,
           phone_number: driver.phone_number,
@@ -637,10 +317,15 @@ export class DriverService {
         accessToken,
       };
     } catch (error) {
-      if (error instanceof UnauthorizedException || error instanceof InternalServerErrorException) {
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof InternalServerErrorException
+      ) {
         throw error;
       }
       console.error("Authentication error:", error);
+      console.error(">>> REAL AUTHENTICATION ERROR:", error);
+
       throw new InternalServerErrorException("Authentication failed");
     }
   }
@@ -1017,65 +702,68 @@ export class DriverService {
     }
   }
 
-  // /**
-  //  * Get driver statistics (Admin only)
-  //  */
-  // async getDriverStats(): Promise<{
-  //   total: number;
-  //   active: number;
-  //   inactive: number;
-  //   verified: number;
-  //   unverified: number;
-  //   profileComplete: number;
-  //   profileIncomplete: number;
-  // }> {
-  //   try {
-  //     const [
-  //       total,
-  //       active,
-  //       inactive,
-  //       verified,
-  //       unverified,
-  //       profileComplete,
-  //       profileIncomplete,
-  //     ] = await Promise.all([
-  //       this.drivers.count(),
-  //       this.drivers.count({ where: { is_active: true } }),
-  //       this.drivers.count({ where: { is_active: false } }),
-  //       this.drivers.count({ where: { is_verified: true } }),
-  //       this.drivers.count({ where: { is_verified: false } }),
-  //       this.drivers.count({
-  //         where: {
-  //           first_name: { not: null },
-  //           last_name: { not: null },
-  //           driver_license_number: { not: null },
-  //         },
-  //       }),
-  //       this.drivers.count({
-  //         where: [
-  //           { first_name: null },
-  //           { last_name: null },
-  //           { driver_license_number: null },
-  //         ],
-  //       }),
-  //     ]);
+  /**
+   * Get driver statistics (Admin only)
+   */
 
-  //     return {
-  //       total,
-  //       active,
-  //       inactive,
-  //       verified,
-  //       unverified,
-  //       profileComplete,
-  //       profileIncomplete,
-  //     };
-  //   } catch (error) {
-  //     console.error("Stats retrieval error:", error);
-  //     throw new InternalServerErrorException(
-  //       "Failed to retrieve driver statistics"
-  //     );
-  //   }
-  // }
+  // import { Not, IsNull } from "typeorm"; // Make sure to import these operators
+
+  async getDriverStats(): Promise<{
+    total: number;
+    active: number;
+    inactive: number;
+    verified: number;
+    unverified: number;
+    profileComplete: number;
+    profileIncomplete: number;
+  }> {
+    try {
+      const [
+        total,
+        active,
+        inactive,
+        verified,
+        unverified,
+        profileComplete,
+        profileIncomplete,
+      ] = await Promise.all([
+        this.drivers.count(),
+        this.drivers.count({ where: { is_active: true } }),
+        this.drivers.count({ where: { is_active: false } }),
+        this.drivers.count({ where: { is_verified: true } }),
+        this.drivers.count({ where: { is_verified: false } }),
+        this.drivers.count({
+          where: {
+            first_name: Not(IsNull()),
+            last_name: Not(IsNull()),
+            driver_license_number: Not(IsNull()),
+          },
+        }),
+        this.drivers.count({
+          where: [
+            { first_name: IsNull() },
+            { last_name: IsNull() },
+            { driver_license_number: IsNull() },
+          ],
+        }),
+      ]);
+
+      return {
+        total,
+        active,
+        inactive,
+        verified,
+        unverified,
+        profileComplete,
+        profileIncomplete,
+      };
+    } catch (error) {
+      console.error("Stats retrieval error:", error);
+      throw new InternalServerErrorException(
+        "Failed to retrieve driver statistics"
+      );
+    }
+  }
 
   /**
    * Search drivers by criteria (Admin only)
