@@ -5,42 +5,25 @@ import { BadRequestException, ValidationPipe } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { winstonLogger } from "./common/loggers/winston.logger";
 import { AllExceptionsFilter } from "./common/errors/error.handling";
-import { createServer } from "http";
-import { Server } from "socket.io";
-import { setSocketInstance } from "./socket/socket.provider";
+import { RedisIoAdapter } from "./socket/socket.adapter";
 
 async function start() {
   try {
     const PORT = process.env.PORT || 3030;
 
-    // Create the NestJS application with Winston logger
     const app = await NestFactory.create(AppModule, {
       logger: winstonLogger,
     });
 
-    // Create a custom HTTP server to attach Socket.IO
-    const httpServer = createServer(app.getHttpAdapter().getInstance());
+    const redisIoAdapter = new RedisIoAdapter(app);
+    await redisIoAdapter.connectToRedis();
+    app.useWebSocketAdapter(redisIoAdapter);
 
-    // Initialize Socket.IO with CORS settings
-    const io = new Server(httpServer, {
-      cors: {
-        origin: ["http://localhost:3030", "http://localhost:3031"],
-        credentials: true,
-      },
-    });
-
-    // Set the Socket.IO server for global DI
-    setSocketInstance(io);
-
-    // app.select(AppModule).get(SOCKET_IO_SERVER as any); 
-
-    // Middlewares and global settings
     app.use(cookieParser());
     app.setGlobalPrefix("api");
     app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
     app.useGlobalFilters(new AllExceptionsFilter());
 
-    // Enable CORS with custom logic
     app.enableCors({
       origin: (origin, callback) => {
         const allowedOrigins = [
@@ -57,7 +40,6 @@ async function start() {
       credentials: true,
     });
 
-    // Swagger API docs setup
     const swaggerConfig = new DocumentBuilder()
       .setTitle("Taxi API")
       .setDescription("Taxi Management System API Documentation")
@@ -85,9 +67,7 @@ async function start() {
       customSiteTitle: "Taxi API Documentation",
     });
 
-    // Initialize NestJS modules before starting HTTP + WebSocket server
-    await app.init();
-    await httpServer.listen(PORT);
+    await app.listen(PORT);
 
     console.log(`✅ Server is running on http://localhost:${PORT}`);
     console.log(`📚 Swagger docs available at http://localhost:${PORT}/api`);

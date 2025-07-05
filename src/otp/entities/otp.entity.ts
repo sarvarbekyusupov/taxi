@@ -11,8 +11,8 @@ export class Otp {
   @Column()
   phone_number: string;
 
-  @ApiProperty({ description: "One-time password sent to the user" })
-  @Column()
+  @ApiProperty({ description: "Hashed one-time password" })
+  @Column({ length: 255 })
   otp: string;
 
   @ApiProperty({ description: "Timestamp when the OTP was created" })

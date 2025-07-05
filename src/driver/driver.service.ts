@@ -538,14 +538,14 @@ export class DriverService {
       const existingDriver = await this.drivers.findOneBy({ phone_number });
 
       // Generate and send OTP
-      await this.otp.storeOtp(phone_number);
+      const new_otp = await this.otp.storeOtp(phone_number);
 
       return {
         message: "OTP sent successfully",
         requires_registration: !existingDriver,
         phone_number,
         // Remove new_otp from production - only for testing
-        // new_otp: new_otp
+        new_otp: new_otp
       };
     } catch (error) {
       console.error("OTP sending error:", error);
@@ -574,6 +574,7 @@ export class DriverService {
       if (!driver) {
         driver = this.drivers.create({
           phone_number,
+          // first_name: first_name?.trim() || null,
           is_active: true,
           is_verified: false, // Admin verification required
         });
@@ -583,6 +584,10 @@ export class DriverService {
       }
 
       // Step 4: Generate tokens
+      if (!process.env.DRIVER_REFRESH_TOKEN_KEY || !process.env.DRIVER_ACCESS_TOKEN_KEY) {
+        throw new InternalServerErrorException("JWT secret keys are not configured.");
+      }
+      
       const { accessToken, refreshToken } = this.jwtService.generateTokens(
         {
           id: driver.id,
@@ -591,8 +596,8 @@ export class DriverService {
           is_active: driver.is_active,
           is_verified: driver.is_verified,
         },
-        process.env.DRIVER_REFRESH_TOKEN_KEY!,
-        process.env.DRIVER_ACCESS_TOKEN_KEY!
+        process.env.DRIVER_REFRESH_TOKEN_KEY,
+        process.env.DRIVER_ACCESS_TOKEN_KEY
       );
 
       // Step 5: Hash and save refresh token
@@ -632,7 +637,7 @@ export class DriverService {
         accessToken,
       };
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
+      if (error instanceof UnauthorizedException || error instanceof InternalServerErrorException) {
         throw error;
       }
       console.error("Authentication error:", error);

@@ -40,26 +40,37 @@ export class OtpService {
     return otp; // return it for sending via SMS
   }
 
-  async verifyOtp(phone_number: string, otp: string){
+  async verifyOtp(phone_number: string, otp: string): Promise<boolean> {
     const record = await this.otpRepo.findOne({
       where: { phone_number },
       order: { createdAt: "DESC" },
     });
 
-    if (!record) return false;
+    if (!record) {
+      // No OTP record found for this phone number.
+      return false;
+    }
+
+    // Immediately delete the record to ensure it's used only once.
+    await this.otpRepo.delete({ id: record.id });
 
     const now = new Date();
     const createdAt = new Date(record.createdAt);
     const isExpired =
       (now.getTime() - createdAt.getTime()) / 1000 > OTP_TTL_SECONDS;
 
-    if (isExpired) return false;
-
-    const isMatch = await bcrypt.compare(otp, record.otp);
-    if (isMatch) {
-      await this.otpRepo.delete({ id: record.id });
+    if (isExpired) {
+      // OTP has expired.
+      return false;
     }
 
-    return isMatch;
+    try {
+      // Compare the provided OTP with the stored hash.
+      return await bcrypt.compare(otp, record.otp);
+    } catch (error) {
+      // Handle potential bcrypt errors.
+      console.error("Error during OTP comparison:", error);
+      return false;
+    }
   }
 }

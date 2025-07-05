@@ -39,6 +39,8 @@ export class VerifyDriverOtpDto {
   phone_number: string;
 
   @ApiProperty({ example: "1234" })
+  @IsString()
+  @IsNotEmpty()
   otp: string;
 
   @ApiProperty({ example: "John", required: false })
