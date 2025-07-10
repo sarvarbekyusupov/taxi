@@ -750,7 +750,7 @@ export class RidesService {
   }
 
   // Main create ride method with comprehensive error handling and monitoring
-  async create(dto: CreateRideDto): Promise<Ride> {
+  async create(dto: CreateRideDto, idempotencyKey?: string): Promise<Ride> {
     const correlationId = randomUUID();
     const timer = rideCreationDuration.startTimer();
 
@@ -762,7 +762,17 @@ export class RidesService {
       correlationId,
       clientId: dto.client_id,
       tariff: dto.tariff_type,
+      idempotencyKey,
     });
+
+    if (idempotencyKey) {
+      const cachedRideId = await safeGet(`idempotency:${idempotencyKey}`);
+      if (cachedRideId) {
+        this.logger.info("Idempotency key already processed", { correlationId, idempotencyKey });
+        const ride = await this.rideRepository.findOne({ where: { id: +cachedRideId } });
+        if (ride) return ride;
+      }
+    }
 
     try {
       // Step 1: Rate limiting
@@ -920,6 +930,10 @@ export class RidesService {
               correlationId
             );
           }
+        }
+
+        if (idempotencyKey) {
+          await safeSet(`idempotency:${idempotencyKey}`, savedRide.id.toString(), 86400);
         }
 
         this.logger.info("Ride creation completed successfully", {
@@ -1636,7 +1650,6 @@ export class RidesService {
     return register.metrics();
   }
 
-  // Administrative methods
   async getServiceStatistics(): Promise<{
     activeRides: number;
     totalRidesLast24h: number;
@@ -1681,6 +1694,27 @@ export class RidesService {
     };
   }
 
+  async estimateFare(
+    pickupLat: number,
+    pickupLng: number,
+    destinationLat: number,
+    destinationLng: number,
+    tariffType: TariffType,
+  ): Promise<number> {
+    // In a real application, you would calculate distance and duration
+    // using a mapping service (e.g., Google Maps Distance Matrix API)
+    // For this example, we'll use a dummy distance and duration.
+    const dummyDistance = 10; // km
+    const dummyDuration = 20; // minutes
+
+    return this.fareCalculator.calculateFare(
+      tariffType,
+      1, // Assuming a default service area ID for estimation
+      dummyDistance,
+      dummyDuration,
+    );
+  }
+
   // Graceful shutdown
   async onApplicationShutdown(): Promise<void> {
     this.logger.info("Shutting down RidesService");
@@ -1693,5 +1727,247 @@ export class RidesService {
         error: error.message,
       });
     }
+  }
+
+  // --- 1. Payment Integration and Financial Operations ---
+
+  async processPayment(rideId: number): Promise<any> {
+    const correlationId = randomUUID();
+    this.logger.info("Processing payment", { correlationId, rideId });
+
+    const ride = await this.rideRepository.findOne({ where: { id: rideId } });
+    if (!ride) {
+      throw new ServiceError(
+        ServiceErrorType.RESOURCE_NOT_FOUND,
+        "Ride not found",
+        correlationId
+      );
+    }
+
+    // In a real application, you would integrate with a payment gateway like Stripe.
+    // For now, we'll simulate a successful payment.
+    const paymentGateway = {
+      charge: async (amount, currency, source) => {
+        return { success: true, transactionId: randomUUID() };
+      },
+    };
+
+    try {
+      const paymentResult = await paymentGateway.charge(
+        ride.final_fare,
+        "UZS",
+        "card_id" // This would come from the client's saved payment methods
+      );
+
+      if (paymentResult.success) {
+        ride.status = RideStatus.PAID;
+        await this.rideRepository.save(ride);
+        this.logger.info("Payment successful", { correlationId, rideId });
+        return { status: "success", transactionId: paymentResult.transactionId };
+      } else {
+        ride.status = RideStatus.PAYMENT_FAILED;
+        await this.rideRepository.save(ride);
+        this.logger.warn("Payment failed", { correlationId, rideId });
+        return { status: "failed" };
+      }
+    } catch (error) {
+      this.logger.error("Payment processing error", {
+        correlationId,
+        rideId,
+        error: error.message,
+      });
+      throw new ServiceError(
+        ServiceErrorType.EXTERNAL_SERVICE_ERROR,
+        "Payment gateway error",
+        correlationId
+      );
+    }
+  }
+
+  async handleRefund(
+    rideId: number,
+    amount: number,
+    reason: string
+  ): Promise<any> {
+    const correlationId = randomUUID();
+    this.logger.info("Handling refund", { correlationId, rideId, amount, reason });
+
+    const ride = await this.rideRepository.findOne({ where: { id: rideId } });
+    if (!ride) {
+      throw new ServiceError(
+        ServiceErrorType.RESOURCE_NOT_FOUND,
+        "Ride not found",
+        correlationId
+      );
+    }
+
+    // In a real application, you would integrate with a payment gateway like Stripe.
+    const paymentGateway = {
+      refund: async (transactionId, amount, reason) => {
+        return { success: true, refundId: randomUUID() };
+      },
+    };
+
+    try {
+      const refundResult = await paymentGateway.refund(
+        "transaction_id", // This would be stored from the original payment
+        amount,
+        reason
+      );
+
+      if (refundResult.success) {
+        // Log the refund for auditing
+        this.logger.info("Refund successful", {
+          correlationId,
+          rideId,
+          amount,
+          reason,
+          refundId: refundResult.refundId,
+        });
+        return { status: "success", refundId: refundResult.refundId };
+      } else {
+        this.logger.warn("Refund failed", { correlationId, rideId });
+        return { status: "failed" };
+      }
+    } catch (error) {
+      this.logger.error("Refund processing error", {
+        correlationId,
+        rideId,
+        error: error.message,
+      });
+      throw new ServiceError(
+        ServiceErrorType.EXTERNAL_SERVICE_ERROR,
+        "Payment gateway error",
+        correlationId
+      );
+    }
+  }
+
+  async reassignDriver(rideId: number, reason: string): Promise<Ride> {
+    const correlationId = randomUUID();
+    this.logger.info("Reassigning driver", { correlationId, rideId, reason });
+
+    const ride = await this.rideRepository.findOne({ where: { id: rideId }, relations: ["driver"] });
+    if (!ride) {
+      throw new ServiceError(
+        ServiceErrorType.RESOURCE_NOT_FOUND,
+        "Ride not found",
+        correlationId
+      );
+    }
+
+    const originalDriverId = ride.driver.id;
+
+    // 1. Cancel the ride for the original driver
+    await this.cancelRide(rideId, originalDriverId, "driver", reason);
+
+    // 2. Find a new driver, excluding the original one
+    const driverMatch = await this.getNearestAvailableDriver(
+      ride.pickup_latitude,
+      ride.pickup_longitude,
+      ride.tariff_type,
+      correlationId
+    );
+
+    if (!driverMatch) {
+      throw new ServiceError(
+        ServiceErrorType.DRIVER_NOT_AVAILABLE,
+        "No available drivers for reassignment",
+        correlationId
+      );
+    }
+
+    const newDriver = await this.driverRepository.findOne({ where: { id: driverMatch.driverId } });
+    if (!newDriver) {
+      throw new ServiceError(
+        ServiceErrorType.RESOURCE_NOT_FOUND,
+        "New driver not found",
+        correlationId
+      );
+    }
+
+    // 3. Update the ride with the new driver
+    ride.driver = newDriver;
+    ride.status = RideStatus.PENDING;
+    const updatedRide = await this.rideRepository.save(ride);
+
+    // Notify the client
+    this.socketServer.emit(`rideReassigned:${ride.client.id}`, {
+      rideId: ride.id,
+      newDriverId: newDriver.id,
+    });
+
+    return updatedRide;
+  }
+
+  async updateDriverLocation(driverId: number, lat: number, lng: number): Promise<void> {
+    const correlationId = randomUUID();
+    this.logger.info("Updating driver location", { correlationId, driverId, lat, lng });
+
+    await this.circuitBreaker.execute(async () => {
+      await redisClient.geoAdd("drivers:geo", { longitude: lng, latitude: lat, member: driverId.toString() });
+    }, correlationId);
+
+    const ride = await this.rideRepository.findOne({ where: { driver: { id: driverId }, status: RideStatus.STARTED }, relations: ["client"] });
+    if (ride) {
+      this.socketServer.emit(`driverLocationUpdated:${ride.client.id}`, {
+        rideId: ride.id,
+        lat,
+        lng,
+      });
+    }
+  }
+
+  async addSupportForScheduledRides(dto: any): Promise<Ride> {
+    const correlationId = randomUUID();
+    this.logger.info("Adding support for scheduled rides", { correlationId, dto });
+
+    const ride: Ride = this.rideRepository.create({
+      pickup_latitude: dto.pickup_latitude,
+      pickup_longitude: dto.pickup_longitude,
+      pickup_address: dto.pickup_address,
+      destination_latitude: dto.destination_latitude,
+      destination_longitude: dto.destination_longitude,
+      destination_address: dto.destination_address,
+      estimated_distance: dto.estimated_distance,
+      estimated_duration_minutes: dto.estimated_duration_minutes,
+      payment_method: dto.payment_method,
+      promo_code_id: dto.promo_code_id,
+      discount_amount: dto.discount_amount,
+      tariff_type: dto.tariff_type,
+      client: { id: dto.client_id },
+      status: RideStatus.SCHEDULED,
+      requested_at: new Date(),
+    });
+
+    return this.rideRepository.save(ride);
+  }
+
+  async getSystemPerformanceMetrics(): Promise<any> {
+    const correlationId = randomUUID();
+    this.logger.info("Getting system performance metrics", { correlationId });
+
+    const onlineDrivers = await redisClient.zCard("drivers:geo");
+    const pendingRides = await this.rideRepository.count({ where: { status: RideStatus.PENDING } });
+
+    const conversionFunnel = {
+      drivers_found: 0, // This would require more detailed metrics
+      driver_assigned: 0,
+      accepted: 0,
+      completed: 0,
+    };
+
+    return {
+      driverSupplyDemand: {
+        onlineDrivers,
+        pendingRides,
+      },
+      conversionFunnel,
+      pricingAnalytics: {},
+    };
+  }
+
+  async findOne(id: number): Promise<Ride | null> {
+    return this.rideRepository.findOne({ where: { id }, relations: ["client", "driver"] });
   }
 }

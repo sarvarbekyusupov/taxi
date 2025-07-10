@@ -748,6 +748,8 @@ import {
   DriverSearchDto,
   UpdateDriverStatusDto,
 } from "./dto/create-driver.dto";
+import { GoOnlineDto } from "./dto/go-online.dto";
+import { UpdateLocationDto } from "./dto/update-location.dto";
 import { UpdateDriverDto } from "./dto/update-driver.dto";
 import { SendOtpDto } from "../otp/dto/otp.dto";
 import { Response, Request } from "express";
@@ -1055,6 +1057,28 @@ export class DriverController {
       body.isOnline ? "online" : "offline"
     );
     return { message: `Driver is now ${body.isOnline ? "online" : "offline"}` };
+  }
+
+  @Post("go-online")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("driver")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Driver goes online and sets initial location" })
+  @ApiBody({ type: GoOnlineDto })
+  @ApiResponse({ status: 200, description: "Driver is online and location set" })
+  async goOnline(@Body() goOnlineDto: GoOnlineDto) {
+    return this.driverService.goOnline(goOnlineDto.driverId, goOnlineDto.lat, goOnlineDto.lng);
+  }
+
+  @Put("location")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("driver")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Continuously update driver's current location" })
+  @ApiBody({ type: UpdateLocationDto })
+  @ApiResponse({ status: 200, description: "Driver location updated" })
+  async updateLocation(@Body() updateLocationDto: UpdateLocationDto) {
+    return this.driverService.updateLocation(updateLocationDto.driverId, updateLocationDto.lat, updateLocationDto.lng);
   }
 
   // ==================================================

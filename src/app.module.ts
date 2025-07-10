@@ -54,6 +54,9 @@ import { LocationModule } from './location/location.module';
 import { SocketModule } from "./socket/socket.module";
 import { BullModule } from "@nestjs/bull";
 import { ScheduleModule } from "@nestjs/schedule";
+import { TelegramService } from "./telegram/telegram.service";
+import { TelegramModule } from "./telegram/telegram.module";
+// import { PaymeModule } from './payme/payme.module';
 
 @Module({
   imports: [
@@ -125,6 +128,8 @@ import { ScheduleModule } from "@nestjs/schedule";
     SupportTicketsModule,
     MailModule,
     LocationModule,
+    TelegramModule,
+    // PaymeModule,
   ],
   controllers: [],
   providers: [],

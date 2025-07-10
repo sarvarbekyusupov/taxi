@@ -5,9 +5,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Client } from './entities/client.entity';
 import { OtpModule } from '../otp/otp.module';
 import { AuthModule } from '../auth/auth.module';
+import { TelegramModule } from '../telegram/telegram.module';
 
 @Module({
-  imports:[TypeOrmModule.forFeature([Client]), OtpModule, AuthModule],
+  imports:[TypeOrmModule.forFeature([Client]), OtpModule, AuthModule, TelegramModule],
   controllers: [ClientController],
   providers: [ClientService],
 })

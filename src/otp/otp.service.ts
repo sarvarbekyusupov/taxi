@@ -29,10 +29,16 @@ export class OtpService {
 
     await this.otpRepo.delete({ phone_number });
 
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + OTP_TTL_SECONDS * 1000);
+
     const otpEntity = this.otpRepo.create({
       phone_number,
       otp: hashedOtp,
       createdAt: new Date(),
+      
+      
+
     });
 
     await this.otpRepo.save(otpEntity);

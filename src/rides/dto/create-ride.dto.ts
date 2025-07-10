@@ -1,131 +1,76 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import {
-  IsNumber,
-  IsOptional,
-  IsEnum,
-  IsLatitude,
-  IsLongitude,
-  IsNotEmpty,
-  IsPositive,
-  IsString,
-} from "class-validator";
-import { PaymentMethod, TariffType } from "../entities/ride.entity";
+import { ApiProperty } from "@nestjs/swagger";
+import { IsNotEmpty, IsNumber, IsString, IsOptional, IsEnum } from "class-validator";
+import { PaymentMethod } from "../../payments/enums/enum";
+import { TariffType } from "../entities/ride.entity";
 
 export class CreateRideDto {
-  @ApiProperty({
-    example: 1,
-    description: "ID of the client requesting the ride",
-  })
+  @ApiProperty({ example: 41.311081, description: "Pickup latitude" })
   @IsNumber()
-  @IsPositive()
-  client_id: number;
-
-  @ApiPropertyOptional({
-    example: 2,
-    description:
-      "ID of the driver accepting the ride (optional, only by admin/operator)",
-  })
-  @IsOptional()
-  @IsNumber()
-  @IsPositive()
-  driver_id?: number;
-
-  @ApiProperty({
-    example: 37.7749,
-    description: "Latitude of the pickup location",
-  })
-  @IsLatitude()
+  @IsNotEmpty()
   pickup_latitude: number;
 
-  @ApiProperty({
-    example: -122.4194,
-    description: "Longitude of the pickup location",
-  })
-  @IsLongitude()
+  @ApiProperty({ example: 69.240562, description: "Pickup longitude" })
+  @IsNumber()
+  @IsNotEmpty()
   pickup_longitude: number;
 
-  @ApiProperty({
-    example: "123 Market St, San Francisco, CA",
-    description: "Pickup address",
-  })
+  @ApiProperty({ example: "Tashkent City Center", description: "Pickup address" })
   @IsString()
   @IsNotEmpty()
   pickup_address: string;
 
-  @ApiProperty({ example: 37.8715, description: "Latitude of the destination" })
-  @IsLatitude()
+  @ApiProperty({ example: 41.3275, description: "Destination latitude" })
+  @IsNumber()
+  @IsNotEmpty()
   destination_latitude: number;
 
-  @ApiProperty({
-    example: -122.273,
-    description: "Longitude of the destination",
-  })
-  @IsLongitude()
+  @ApiProperty({ example: 69.2817, description: "Destination longitude" })
+  @IsNumber()
+  @IsNotEmpty()
   destination_longitude: number;
 
-  @ApiProperty({
-    example: "456 University Ave, Berkeley, CA",
-    description: "Destination address",
-  })
+  @ApiProperty({ example: "Yunusobod District", description: "Destination address" })
   @IsString()
   @IsNotEmpty()
   destination_address: string;
 
-  @ApiPropertyOptional({
-    example: 15.6,
-    description: "Estimated distance in kilometers",
-  })
-  @IsOptional()
+  @ApiProperty({ example: 12, description: "ID of the requesting client" })
   @IsNumber()
-  @IsPositive()
-  estimated_distance?: number;
+  @IsNotEmpty()
+  client_id: number;
 
-  @ApiPropertyOptional({
-    example: 25,
-    description: "Estimated duration in minutes",
-  })
-  @IsOptional()
+  @ApiProperty({ example: 8.6, description: "Estimated distance in kilometers" })
   @IsNumber()
-  @IsPositive()
-  estimated_duration_minutes?: number;
+  @IsNotEmpty()
+  estimated_distance: number;
 
-  @ApiPropertyOptional({
-    example: 18.75,
-    description: "Estimated fare for the ride in USD",
-  })
-  @IsOptional()
+  @ApiProperty({ example: 15, description: "Estimated duration in minutes" })
   @IsNumber()
-  @IsPositive()
-  estimated_fare?: number;
+  @IsNotEmpty()
+  estimated_duration_minutes: number;
 
-  @ApiProperty({
-    example: "CASH",
-    enum: PaymentMethod,
-    description: "Payment method selected",
-  })
+  @ApiProperty({ example: 1, description: "ID of the service area" })
+  @IsNumber()
+  @IsNotEmpty()
+  service_area_id: number;
+
+  @ApiProperty({ example: "cash", enum: PaymentMethod, description: "Payment method for the ride" })
   @IsEnum(PaymentMethod)
+  @IsNotEmpty()
   payment_method: PaymentMethod;
 
-  @ApiProperty({
-    example: "ECONOMY",
-    enum: TariffType,
-    description: "Tariff type selected by client",
-  })
-  @IsEnum(TariffType)
-  tariff_type: TariffType;
-
-  @ApiPropertyOptional({ example: 101, description: "Promo code ID if any" })
-  @IsOptional()
+  @ApiProperty({ example: null, description: "ID of the promo code used (optional)" })
   @IsNumber()
+  @IsOptional()
   promo_code_id?: number;
 
-  @ApiPropertyOptional({ example: 2.5, description: "Discount amount if any" })
-  @IsOptional()
+  @ApiProperty({ example: 0, description: "Discount amount applied (optional)" })
   @IsNumber()
+  @IsOptional()
   discount_amount?: number;
 
-  @ApiProperty({ example: 1, description: "Service Area ID" })
-  @IsNumber()
-  @IsPositive()
-  service_area_id: number;
+  @ApiProperty({ example: "ECONOMY", enum: TariffType, description: "Type of tariff for the ride" })
+  @IsEnum(TariffType)
+  @IsNotEmpty()
+  tariff_type: TariffType;
 }

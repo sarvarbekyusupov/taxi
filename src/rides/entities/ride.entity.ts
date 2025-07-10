@@ -30,6 +30,8 @@ export enum RideStatus {
   COMPLETED = "completed",
   CANCELLED = "cancelled",
   PAID = "paid",
+  PAYMENT_FAILED = "payment_failed",
+  SCHEDULED = "scheduled",
 }
 
 export enum PaymentMethod {

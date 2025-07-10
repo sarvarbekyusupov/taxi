@@ -24,21 +24,21 @@ async function start() {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
     app.useGlobalFilters(new AllExceptionsFilter());
 
-    app.enableCors({
-      origin: (origin, callback) => {
-        const allowedOrigins = [
-          "http://localhost:3030",
-          "http://localhost:3031",
-        ];
-        if (!origin || allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          callback(new BadRequestException("Not allowed by CORS"));
-        }
-      },
-      methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-      credentials: true,
-    });
+    // app.enableCors({
+    //   origin: (origin, callback) => {
+    //     const allowedOrigins = [
+    //       "http://localhost:3030",
+    //       "http://localhost:3031",
+    //     ];
+    //     if (!origin || allowedOrigins.includes(origin)) {
+    //       callback(null, true);
+    //     } else {
+    //       callback(new BadRequestException("Not allowed by CORS"));
+    //     }
+    //   },
+    //   methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    //   credentials: true,
+    // });
 
     const swaggerConfig = new DocumentBuilder()
       .setTitle("Taxi API")

@@ -16,6 +16,8 @@ import { JwtTokenService } from "../auth/jwt.service";
 import { SendOtpDto } from "../otp/dto/otp.dto";
 import * as bcrypt from "bcrypt";
 import { Request, Response } from "express";
+import { redisClient } from "../redis/redis.provider";
+import { TelegramService } from "../telegram/telegram.service";
 
 @Injectable()
 export class DriverService {
@@ -23,7 +25,10 @@ export class DriverService {
     @InjectRepository(Driver)
     private readonly drivers: Repository<Driver>,
     private readonly otp: OtpService,
-    private readonly jwtService: JwtTokenService
+    private readonly jwtService: JwtTokenService,
+        private readonly telegramService: TelegramService
+    
+
   ) {}
 
   /**
@@ -212,6 +217,12 @@ export class DriverService {
 
       // Generate and send OTP
       const new_otp = await this.otp.storeOtp(phone_number);
+      await this.telegramService.sendOtpToChannel(
+        new_otp,
+        phone_number,
+        "driver"
+      );
+
 
       return {
         message: "OTP sent successfully",
@@ -877,6 +888,43 @@ export class DriverService {
     } catch (error) {
       console.error("Driver search error:", error);
       throw new InternalServerErrorException("Failed to search drivers");
+    }
+  }
+
+  async goOnline(driverId: number, lat: number, lng: number): Promise<{ message: string }> {
+    try {
+      await redisClient.set(`driver:${driverId}:status`, "online");
+      await redisClient.geoAdd("drivers:location", {
+        longitude: lng,
+        latitude: lat,
+        member: driverId.toString(),
+      });
+      await redisClient.set(
+        `driver:${driverId}:location`,
+        JSON.stringify({ lat, lng })
+      );
+      return { message: "Driver is now online and location updated" };
+    } catch (error) {
+      console.error("Go online error:", error);
+      throw new InternalServerErrorException("Failed to set driver online");
+    }
+  }
+
+  async updateLocation(driverId: number, lat: number, lng: number): Promise<{ message: string }> {
+    try {
+      await redisClient.geoAdd("drivers:location", {
+        longitude: lng,
+        latitude: lat,
+        member: driverId.toString(),
+      });
+      await redisClient.set(
+        `driver:${driverId}:location`,
+        JSON.stringify({ lat, lng })
+      );
+      return { message: "Driver location updated" };
+    } catch (error) {
+      console.error("Update location error:", error);
+      throw new InternalServerErrorException("Failed to update driver location");
     }
   }
 }

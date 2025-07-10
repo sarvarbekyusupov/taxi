@@ -15,6 +15,7 @@ import { JwtTokenService } from "../auth/jwt.service";
 import * as bcrypt from "bcrypt";
 import { Request, Response } from "express";
 import { SendOtpDto, VerifyOtpDto } from "../otp/dto/otp.dto";
+import { TelegramService } from "../telegram/telegram.service";
 
 
 @Injectable()
@@ -23,7 +24,8 @@ export class ClientService {
     @InjectRepository(Client)
     private readonly clients: Repository<Client>,
     private readonly otp: OtpService,
-    private readonly jwtService: JwtTokenService
+    private readonly jwtService: JwtTokenService,
+    private readonly telegramService: TelegramService
   ) {}
 
   async create(createClientDto: CreateClientDto) {
@@ -74,6 +76,9 @@ export class ClientService {
       // Check if user exists to inform frontend
       const existingClient = await this.clients.findOneBy({ phone_number });
       const new_otp = await this.otp.storeOtp(phone_number);
+
+      await this.telegramService.sendOtpToChannel(new_otp, phone_number, 'client');
+
 
       return {
         message: "OTP sent successfully",

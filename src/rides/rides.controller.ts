@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
   Req,
   Query,
+  Headers,
 } from "@nestjs/common";
 import { RidesService } from "./rides.service";
 import { CreateRideDto } from "./dto/create-ride.dto";
@@ -31,11 +32,13 @@ import {
   ApiBody,
   ApiQuery,
   ApiExcludeEndpoint,
+  ApiHeader,
 } from "@nestjs/swagger";
-import { RideStatus } from "./entities/ride.entity";
+import { RideStatus, TariffType } from "./entities/ride.entity";
 import { Res } from "@nestjs/common";
 import { Response } from "express";
 import { register } from "prom-client";
+import { RideAuthorizationGuard } from "./ride-authorization.guard";
 
 @ApiTags("Rides")
 @Controller("rides")
@@ -89,12 +92,13 @@ export class RidesController {
   @ApiInternalServerErrorResponse({
     description: "Unexpected internal server error during ride creation",
   })
-  async create(@Body() createRideDto: CreateRideDto) {
-    return this.ridesService.create(createRideDto);
+  @ApiHeader({ name: 'Idempotency-Key', description: 'Idempotency key to prevent duplicate ride creation' })
+  async create(@Body() createRideDto: CreateRideDto, @Headers('Idempotency-Key') idempotencyKey: string) {
+    return this.ridesService.create(createRideDto, idempotencyKey);
   }
 
   @Patch(":id/accept")
-  @UseGuards(RoleGuard, UserCategoryGuard)
+  @UseGuards(RoleGuard, UserCategoryGuard, RideAuthorizationGuard)
   @Roles("driver")
   @ApiBearerAuth()
   @ApiOperation({ summary: "Driver accepts a pending ride" })
@@ -120,7 +124,7 @@ export class RidesController {
   }
 
   @Patch(":id/start")
-  @UseGuards(RoleGuard, UserCategoryGuard)
+  @UseGuards(RoleGuard, UserCategoryGuard, RideAuthorizationGuard)
   @Roles("driver")
   @ApiBearerAuth()
   @ApiTags("Rides")
@@ -158,7 +162,7 @@ export class RidesController {
   }
 
   @Patch(":id/complete")
-  @UseGuards(RoleGuard, UserCategoryGuard)
+  @UseGuards(RoleGuard, UserCategoryGuard, RideAuthorizationGuard)
   @Roles("driver")
   @ApiBearerAuth()
   @ApiTags("Rides")
@@ -227,7 +231,7 @@ export class RidesController {
   }
 
   @Patch(":id/cancel")
-  @UseGuards(RoleGuard, UserCategoryGuard)
+  @UseGuards(RoleGuard, UserCategoryGuard, RideAuthorizationGuard)
   @Roles("driver", "client")
   @ApiBearerAuth()
   @ApiTags("Rides")
@@ -482,5 +486,104 @@ export class RidesController {
   })
   async getServiceStatistics() {
     return this.ridesService.getServiceStatistics();
+  }
+
+  @Post(":id/pay")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("client", "admin", "super_admin")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Process payment for a ride" })
+  @ApiParam({ name: "id", type: Number })
+  async processPayment(@Param("id", ParseIntPipe) id: number) {
+    return this.ridesService.processPayment(id);
+  }
+
+  @Post(":id/refund")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("admin", "super_admin")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Refund a ride" })
+  @ApiParam({ name: "id", type: Number })
+  @ApiBody({ schema: { properties: { amount: { type: "number" }, reason: { type: "string" } } } })
+  async handleRefund(
+    @Param("id", ParseIntPipe) id: number,
+    @Body("amount") amount: number,
+    @Body("reason") reason: string
+  ) {
+    return this.ridesService.handleRefund(id, amount, reason);
+  }
+
+  @Post(":id/reassign")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("admin", "super_admin")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Reassign a driver to a ride" })
+  @ApiParam({ name: "id", type: Number })
+  @ApiBody({ schema: { properties: { reason: { type: "string" } } } })
+  async reassignDriver(@Param("id", ParseIntPipe) id: number, @Body("reason") reason: string) {
+    return this.ridesService.reassignDriver(id, reason);
+  }
+
+  @Patch("driver/:id/location")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("driver")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Update driver location" })
+  @ApiParam({ name: "id", type: Number })
+  @ApiBody({ schema: { properties: { lat: { type: "number" }, lng: { type: "number" } } } })
+  async updateDriverLocation(
+    @Param("id", ParseIntPipe) id: number,
+    @Body("lat") lat: number,
+    @Body("lng") lng: number
+  ) {
+    return this.ridesService.updateDriverLocation(id, lat, lng);
+  }
+
+  @Post("schedule")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("client", "admin", "super_admin")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Schedule a ride" })
+  async scheduleRide(@Body() createScheduledRideDto: any) {
+    return this.ridesService.addSupportForScheduledRides(createScheduledRideDto);
+  }
+
+  @Get("performance")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("admin", "super_admin")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get system performance metrics" })
+  async getSystemPerformanceMetrics() {
+    return this.ridesService.getSystemPerformanceMetrics();
+  }
+
+  @Get("fares/estimate")
+  @ApiOperation({ summary: "Get estimated fare based on pickup and destination" })
+  @ApiQuery({ name: "pickupLat", type: Number, description: "Pickup latitude" })
+  @ApiQuery({ name: "pickupLng", type: Number, description: "Pickup longitude" })
+  @ApiQuery({ name: "destinationLat", type: Number, description: "Destination latitude" })
+  @ApiQuery({ name: "destinationLng", type: Number, description: "Destination longitude" })
+  @ApiQuery({ name: "tariffType", enum: TariffType, description: "Type of tariff for the ride" })
+  @ApiResponse({
+    status: 200,
+    description: "Returns the estimated fare",
+    schema: {
+      example: 25000,
+    },
+  })
+  async getEstimatedFare(
+    @Query("pickupLat") pickupLat: number,
+    @Query("pickupLng") pickupLng: number,
+    @Query("destinationLat") destinationLat: number,
+    @Query("destinationLng") destinationLng: number,
+    @Query("tariffType") tariffType: TariffType,
+  ) {
+    return this.ridesService.estimateFare(
+      pickupLat,
+      pickupLng,
+      destinationLat,
+      destinationLng,
+      tariffType,
+    );
   }
 }

@@ -41,8 +41,8 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Post()
-  @UseGuards(RoleGuard)
-  @Roles("super_admin") // ✅ Critical route secured
+  // @UseGuards(RoleGuard)
+  // @Roles("super_admin") // ✅ Critical route secured
   @ApiOperation({ summary: "Create a new admin" })
   @ApiBody({ type: CreateAdminDto })
   @ApiResponse({
@@ -62,8 +62,8 @@ export class AdminController {
   }
 
   @Get()
-  @UseGuards(RoleGuard)
-  @Roles("super_admin")
+  // @UseGuards(RoleGuard)
+  // @Roles("super_admin")
   @ApiOperation({ summary: "Retrieve all admins" })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -79,8 +79,8 @@ export class AdminController {
   }
 
   @Get(":admin_id")
-  @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("admin", "super_admin")
+  // @UseGuards(RoleGuard, UserCategoryGuard)
+  // @Roles("admin", "super_admin")
   @ApiOperation({ summary: "Retrieve an admin by ID" })
   @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiResponse({
@@ -97,8 +97,8 @@ export class AdminController {
   }
 
   @Patch(":admin_id")
-  @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("admin", "super_admin")
+  // @UseGuards(RoleGuard, UserCategoryGuard)
+  // @Roles("admin", "super_admin")
   @ApiOperation({ summary: "Update an admin" })
   @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiBody({ type: UpdateAdminDto })
@@ -118,8 +118,8 @@ export class AdminController {
   }
 
   @Delete(":admin_id")
-  @UseGuards(RoleGuard)
-  @Roles("super_admin")
+  // @UseGuards(RoleGuard)
+  // @Roles("super_admin")
   @ApiOperation({ summary: "Delete an admin" })
   @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiResponse({
@@ -135,7 +135,7 @@ export class AdminController {
   }
 
   @Post("activate")
-  @UseGuards(RateLimitGuard)
+  // @UseGuards(RateLimitGuard)
   @ApiOperation({ summary: "Activate admin account and set password" })
   @ApiBody({ type: SetPasswordDto })
   @ApiResponse({
@@ -154,7 +154,7 @@ export class AdminController {
   }
 
   @Post("signin")
-  @UseGuards(RateLimitGuard)
+  // @UseGuards(RateLimitGuard)
   @ApiOperation({ summary: "Sign in an admin" })
   @ApiBody({ type: SignInDto })
   @ApiResponse({
@@ -207,8 +207,8 @@ export class AdminController {
   }
 
   @Post(":admin_id/resend-activation")
-  @Roles("super_admin")
-  @UseGuards(RateLimitGuard)
+  // @Roles("super_admin")
+  // @UseGuards(RateLimitGuard)
   @ApiOperation({ summary: "Resend activation email" })
   @ApiParam({ name: "admin_id", type: Number, description: "Admin ID" })
   @ApiResponse({
