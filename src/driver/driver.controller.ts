@@ -1,727 +1,3 @@
-// import {
-//   Body,
-//   Controller,
-//   Get,
-//   Param,
-//   Post,
-//   Put,
-//   Delete,
-//   Req,
-//   Res,
-//   UnauthorizedException,
-//   UseGuards,
-//   HttpCode,
-//   HttpStatus,
-//   ParseIntPipe,
-// } from "@nestjs/common";
-// import { DriverService } from "./driver.service";
-// import { CreateDriverDto, VerifyDriverOtpDto } from "./dto/create-driver.dto";
-// import { UpdateDriverDto } from "./dto/update-driver.dto";
-// import { SendOtpDto } from "../otp/dto/otp.dto";
-// import { Response, Request } from "express";
-// import {
-//   ApiTags,
-//   ApiOperation,
-//   ApiBearerAuth,
-//   ApiResponse,
-//   ApiBody,
-//   ApiCookieAuth,
-//   ApiParam,
-//   ApiConsumes,
-//   ApiProduces,
-// } from "@nestjs/swagger";
-// import { RoleGuard } from "../auth/role.guard";
-// import { Roles } from "../common/decorators/role.decorator";
-// import { UserCategoryGuard } from "../auth/user.guard";
-// import { redisClient } from "../redis/redis.provider";
-
-// // Response DTOs for better Swagger documentation
-// class DriverResponseDto {
-//   id: number;
-//   phone_number: string;
-//   first_name?: string;
-//   last_name?: string;
-//   driver_license_number?: string;
-//   is_active: boolean;
-//   is_verified: boolean;
-//   profile_complete: boolean;
-//   created_at?: Date;
-//   updated_at?: Date;
-// }
-
-// class AuthResponseDto {
-//   message: string;
-//   driver: DriverResponseDto;
-//   accessToken: string;
-// }
-
-// class OtpResponseDto {
-//   message: string;
-//   requires_registration: boolean;
-//   phone_number: string;
-// }
-
-// class TokenRefreshResponseDto {
-//   message: string;
-//   accessToken: string;
-// }
-
-// class ProfileCompleteDto {
-//   first_name: string;
-//   last_name: string;
-//   driver_license_number: string;
-// }
-
-// class StatusToggleDto {
-//   isOnline: boolean;
-// }
-
-// class StandardResponseDto {
-//   message: string;
-// }
-
-// @ApiTags("Driver Management")
-// @Controller("drivers")
-// @ApiProduces("application/json")
-// export class DriverController {
-//   constructor(private readonly driverService: DriverService) {}
-
-//   // ========== ADMIN DRIVER MANAGEMENT ==========
-
-//   @Post()
-//   @UseGuards(RoleGuard, UserCategoryGuard)
-//   @Roles("admin")
-//   @ApiBearerAuth()
-//   @HttpCode(HttpStatus.CREATED)
-//   @ApiOperation({
-//     summary: "Create a new driver",
-//     description: "Create a new driver account. Admin access required.",
-//   })
-//   @ApiConsumes("application/json")
-//   @ApiBody({
-//     type: CreateDriverDto,
-//     description: "Driver creation data",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.CREATED,
-//     description: "Driver created successfully",
-//     type: DriverResponseDto,
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.BAD_REQUEST,
-//     description: "Invalid input data",
-//     schema: {
-//       type: "object",
-//       properties: {
-//         statusCode: { type: "number", example: 400 },
-//         message: { type: "string", example: "Phone number already exists" },
-//         error: { type: "string", example: "Bad Request" },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Unauthorized access",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.FORBIDDEN,
-//     description: "Insufficient permissions",
-//   })
-//   create(@Body() createDriverDto: CreateDriverDto) {
-//     return this.driverService.create(createDriverDto);
-//   }
-
-//   @Get()
-//   @UseGuards(RoleGuard, UserCategoryGuard)
-//   @Roles("admin")
-//   @ApiBearerAuth()
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Get all drivers",
-//     description: "Retrieve a list of all drivers. Admin access required.",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "List of drivers retrieved successfully",
-//     type: [DriverResponseDto],
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Unauthorized access",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.FORBIDDEN,
-//     description: "Insufficient permissions",
-//   })
-//   findAll() {
-//     return this.driverService.findAll();
-//   }
-
-//   @Get(":id")
-//   @UseGuards(RoleGuard, UserCategoryGuard)
-//   @Roles("admin", "driver")
-//   @ApiBearerAuth()
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Get driver by ID",
-//     description:
-//       "Retrieve a specific driver by their ID. Admin or driver access required.",
-//   })
-//   @ApiParam({
-//     name: "id",
-//     type: "number",
-//     description: "Driver ID",
-//     example: 1,
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "Driver retrieved successfully",
-//     type: DriverResponseDto,
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.BAD_REQUEST,
-//     description: "Driver not found",
-//     schema: {
-//       type: "object",
-//       properties: {
-//         statusCode: { type: "number", example: 400 },
-//         message: { type: "string", example: "Driver with ID 1 not found" },
-//         error: { type: "string", example: "Bad Request" },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Unauthorized access",
-//   })
-//   findOne(@Param("id", ParseIntPipe) id: number) {
-//     return this.driverService.findOne(id);
-//   }
-
-//   @Put(":id")
-//   @UseGuards(RoleGuard, UserCategoryGuard)
-//   @Roles("admin", "driver")
-//   @ApiBearerAuth()
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Update driver",
-//     description: "Update driver information. Admin or driver access required.",
-//   })
-//   @ApiParam({
-//     name: "id",
-//     type: "number",
-//     description: "Driver ID",
-//     example: 1,
-//   })
-//   @ApiBody({
-//     type: UpdateDriverDto,
-//     description: "Driver update data",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "Driver updated successfully",
-//     type: StandardResponseDto,
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.BAD_REQUEST,
-//     description: "Driver not found or invalid data",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Unauthorized access",
-//   })
-//   update(
-//     @Param("id", ParseIntPipe) id: number,
-//     @Body() updateDriverDto: UpdateDriverDto
-//   ) {
-//     return this.driverService.update(id, updateDriverDto);
-//   }
-
-//   @Delete(":id")
-//   @UseGuards(RoleGuard, UserCategoryGuard)
-//   @Roles("admin")
-//   @ApiBearerAuth()
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Delete driver",
-//     description: "Delete a driver account. Admin access required.",
-//   })
-//   @ApiParam({
-//     name: "id",
-//     type: "number",
-//     description: "Driver ID",
-//     example: 1,
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "Driver deleted successfully",
-//     type: StandardResponseDto,
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.BAD_REQUEST,
-//     description: "Driver not found",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Unauthorized access",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.FORBIDDEN,
-//     description: "Insufficient permissions",
-//   })
-//   remove(@Param("id", ParseIntPipe) id: number) {
-//     return this.driverService.remove(id);
-//   }
-
-//   // ========== DRIVER AUTHENTICATION ==========
-
-//   @Post("auth/send-otp")
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Send OTP to driver",
-//     description:
-//       "Send a one-time password to the driver's phone number for authentication.",
-//   })
-//   @ApiBody({
-//     type: SendOtpDto,
-//     description: "Phone number for OTP delivery",
-//     examples: {
-//       example1: {
-//         summary: "Send OTP",
-//         description: "Send OTP to a phone number",
-//         value: {
-//           phone_number: "+998901234567",
-//         },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "OTP sent successfully",
-//     type: OtpResponseDto,
-//     examples: {
-//       existing_driver: {
-//         summary: "Existing driver",
-//         // description: "OTP sent to existing driver",
-//         value: {
-//           message: "OTP sent successfully",
-//           requires_registration: false,
-//           phone_number: "+998901234567",
-//         },
-//       },
-//       new_driver: {
-//         summary: "New driver",
-//         // description: "OTP sent to new driver requiring registration",
-//         value: {
-//           message: "OTP sent successfully",
-//           requires_registration: true,
-//           phone_number: "+998901234567",
-//         },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.BAD_REQUEST,
-//     description: "Failed to send OTP",
-//     schema: {
-//       type: "object",
-//       properties: {
-//         statusCode: { type: "number", example: 400 },
-//         message: { type: "string", example: "Failed to send OTP" },
-//         error: { type: "string", example: "Bad Request" },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.TOO_MANY_REQUESTS,
-//     description: "Too many OTP requests",
-//   })
-//   sendOtp(@Body() sendOtpDto: SendOtpDto) {
-//     return this.driverService.sendOtp(sendOtpDto);
-//   }
-
-//   @Post("auth/verify-otp")
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Verify OTP and authenticate",
-//     description:
-//       "Verify the OTP code and authenticate the driver. Creates new driver account if needed.",
-//   })
-//   @ApiBody({
-//     type: VerifyDriverOtpDto,
-//     description: "OTP verification data",
-//     examples: {
-//       example1: {
-//         summary: "Verify OTP",
-//         description: "Verify OTP code",
-//         value: {
-//           phone_number: "+998901234567",
-//           otp: "123456",
-//         },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "OTP verified and driver authenticated",
-//     type: AuthResponseDto,
-//     examples: {
-//       existing_driver: {
-//         summary: "Existing driver login",
-//         // description: "Successful login for existing driver",
-//         value: {
-//           message: "Login successful",
-//           driver: {
-//             id: 1,
-//             phone_number: "+998901234567",
-//             first_name: "John",
-//             last_name: "Doe",
-//             driver_license_number: "DL123456789",
-//             is_active: true,
-//             is_verified: true,
-//             profile_complete: true,
-//           },
-//           accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-//         },
-//       },
-//       new_driver: {
-//         summary: "New driver registration",
-//         // description: "Successful registration for new driver",
-//         value: {
-//           message: "Registration and login successful",
-//           driver: {
-//             id: 2,
-//             phone_number: "+998901234567",
-//             first_name: null,
-//             last_name: null,
-//             driver_license_number: null,
-//             is_active: true,
-//             is_verified: false,
-//             profile_complete: false,
-//           },
-//           accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-//         },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Invalid or expired OTP",
-//     schema: {
-//       type: "object",
-//       properties: {
-//         statusCode: { type: "number", example: 401 },
-//         message: { type: "string", example: "Invalid or expired OTP" },
-//         error: { type: "string", example: "Unauthorized" },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.BAD_REQUEST,
-//     description: "Invalid request data",
-//   })
-//   verifyOtpAndAuth(
-//     @Body() verifyOtpDto: VerifyDriverOtpDto,
-//     @Res({ passthrough: true }) res: Response
-//   ) {
-//     return this.driverService.verifyOtpAndAuth(verifyOtpDto, res);
-//   }
-
-//   @Post("auth/refresh-token")
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Refresh access token",
-//     description:
-//       "Generate a new access token using the refresh token from cookies.",
-//   })
-//   @ApiCookieAuth("refresh_token")
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "Token refreshed successfully",
-//     type: TokenRefreshResponseDto,
-//     examples: {
-//       success: {
-//         summary: "Token refresh success",
-//         value: {
-//           message: "Token refreshed successfully",
-//           accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-//         },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Refresh token missing or invalid",
-//     schema: {
-//       type: "object",
-//       properties: {
-//         statusCode: { type: "number", example: 401 },
-//         message: { type: "string", example: "Refresh token missing" },
-//         error: { type: "string", example: "Unauthorized" },
-//       },
-//     },
-//   })
-//   refreshToken(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-//     const refreshToken = req.cookies?.refresh_token;
-//     if (!refreshToken) {
-//       throw new UnauthorizedException("Refresh token missing");
-//     }
-//     return this.driverService.refreshToken(refreshToken, res);
-//   }
-
-//   @Post("auth/logout")
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Driver logout",
-//     description: "Sign out the driver and clear authentication tokens.",
-//   })
-//   @ApiCookieAuth("refresh_token")
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "Driver logged out successfully",
-//     type: StandardResponseDto,
-//     examples: {
-//       success: {
-//         summary: "Logout success",
-//         // description: "Successfully logged out driver",
-//         value: {
-//           message: "Logged out successfully",
-//         },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.BAD_REQUEST,
-//     description: "Refresh token missing",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Invalid refresh token",
-//   })
-//   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-//     return this.driverService.logout(req, res);
-//   }
-
-//   // ========== DRIVER PROFILE MANAGEMENT ==========
-
-//   @Get("auth/profile")
-//   @UseGuards(RoleGuard, UserCategoryGuard)
-//   @Roles("driver")
-//   @ApiCookieAuth("refresh_token")
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Get driver profile",
-//     description:
-//       "Retrieve the current authenticated driver's profile information.",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "Driver profile retrieved successfully",
-//     type: DriverResponseDto,
-//     examples: {
-//       complete_profile: {
-//         summary: "Complete profile",
-//         // description: "Driver with complete profile information",
-//         value: {
-//           id: 1,
-//           phone_number: "+998901234567",
-//           first_name: "John",
-//           last_name: "Doe",
-//           driver_license_number: "DL123456789",
-//           is_active: true,
-//           is_verified: true,
-//           profile_complete: true,
-//         },
-//       },
-//       incomplete_profile: {
-//         summary: "Incomplete profile",
-//         // description: "Driver with incomplete profile information",
-//         value: {
-//           id: 2,
-//           phone_number: "+998901234567",
-//           first_name: null,
-//           last_name: null,
-//           driver_license_number: null,
-//           is_active: true,
-//           is_verified: false,
-//           profile_complete: false,
-//         },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Refresh token missing or invalid",
-//   })
-//   getProfile(@Req() req: Request) {
-//     const refreshToken = req.cookies?.refresh_token;
-//     if (!refreshToken) {
-//       throw new UnauthorizedException("Refresh token missing");
-//     }
-//     return this.driverService.getProfile(refreshToken);
-//   }
-
-//   @Post("auth/complete-profile")
-//   @UseGuards(RoleGuard, UserCategoryGuard)
-//   @Roles("driver")
-//   @ApiCookieAuth("refresh_token")
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Complete driver profile",
-//     description:
-//       "Complete the driver's profile with personal information and license details.",
-//   })
-//   @ApiBody({
-//     type: ProfileCompleteDto,
-//     description: "Profile completion data",
-//     examples: {
-//       example1: {
-//         summary: "Complete profile",
-//         description: "Complete driver profile information",
-//         value: {
-//           first_name: "John",
-//           last_name: "Doe",
-//           driver_license_number: "DL123456789",
-//         },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "Profile completed successfully",
-//     schema: {
-//       type: "object",
-//       properties: {
-//         message: { type: "string", example: "Profile completed successfully" },
-//         driver: { $ref: "#/components/schemas/DriverResponseDto" },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.BAD_REQUEST,
-//     description: "Missing required fields or driver not found",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Invalid authentication",
-//   })
-//   async completeProfile(@Req() req: any, @Body() body: ProfileCompleteDto) {
-//     const driverId = req.user.sub;
-//     return this.driverService.completeProfile(driverId, body);
-//   }
-
-//   // ========== DRIVER STATUS MANAGEMENT ==========
-
-//   @Post("status")
-//   @ApiBearerAuth()
-//   @UseGuards(RoleGuard)
-//   @Roles("driver")
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Toggle driver online status",
-//     description:
-//       "Set the driver's online/offline status for ride availability.",
-//   })
-//   @ApiBody({
-//     type: StatusToggleDto,
-//     description: "Online status toggle",
-//     examples: {
-//       go_online: {
-//         summary: "Go online",
-//         description: "Set driver status to online",
-//         value: {
-//           isOnline: true,
-//         },
-//       },
-//       go_offline: {
-//         summary: "Go offline",
-//         description: "Set driver status to offline",
-//         value: {
-//           isOnline: false,
-//         },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "Driver status updated successfully",
-//     examples: {
-//       online: {
-//         summary: "Online status",
-//         // description: "Driver is now online",
-//         value: {
-//           message: "Driver is now online",
-//         },
-//       },
-//       offline: {
-//         summary: "Offline status",
-//         // description: "Driver is now offline",
-//         value: {
-//           message: "Driver is now offline",
-//         },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Invalid authentication",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.FORBIDDEN,
-//     description: "Insufficient permissions",
-//   })
-//   async setOnlineStatus(@Body() body: StatusToggleDto, @Req() req: any) {
-//     const driverId = req.user.sub;
-//     await redisClient.set(
-//       `driver:${driverId}:status`,
-//       body.isOnline ? "online" : "offline"
-//     );
-//     return { message: `Driver is now ${body.isOnline ? "online" : "offline"}` };
-//   }
-
-//   // ========== DRIVER STATUS QUERY ==========
-
-//   @Get("status")
-//   @ApiBearerAuth()
-//   @UseGuards(RoleGuard)
-//   @Roles("driver")
-//   @HttpCode(HttpStatus.OK)
-//   @ApiOperation({
-//     summary: "Get driver online status",
-//     description: "Retrieve the current online/offline status of the driver.",
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.OK,
-//     description: "Driver status retrieved successfully",
-//     schema: {
-//       type: "object",
-//       properties: {
-//         driverId: { type: "number", example: 1 },
-//         status: {
-//           type: "string",
-//           example: "online",
-//           enum: ["online", "offline"],
-//         },
-//         timestamp: { type: "string", format: "date-time" },
-//       },
-//     },
-//   })
-//   @ApiResponse({
-//     status: HttpStatus.UNAUTHORIZED,
-//     description: "Invalid authentication",
-//   })
-//   async getOnlineStatus(@Req() req: any) {
-//     const driverId = req.user.sub;
-//     const status =
-//       (await redisClient.get(`driver:${driverId}:status`)) || "offline";
-//     return {
-//       driverId,
-//       status,
-//       timestamp: new Date().toISOString(),
-//     };
-//   }
-// }
-
 import {
   Body,
   Controller,
@@ -825,69 +101,182 @@ export class DriverController {
   // ================ 1. PUBLIC AUTH ROUTES ================
   // =======================================================
 
+  //================SEND OTP===================
   @Post("auth/send-otp")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: "1.1 Send OTP to Driver",
+    summary: "1.1. Send OTP to Driver Phone Number",
+    description:
+      "Sends a one-time password (OTP) to the provided driver phone number. If the number is new, the `requires_registration` flag will be `true`.",
     operationId: "driverSendOtp",
   })
   @ApiBody({
-    type: SendOtpDto,
+    description: "Driver phone number to receive the OTP.",
+    schema: {
+      type: "object",
+      properties: {
+        phone_number: { type: "string", example: "+998901234567" },
+      },
+      required: ["phone_number"],
+    },
     examples: {
       uzbek_phone: {
-        summary: "Phone from Uzbekistan",
-        value: { phone_number: "+998901234567" },
+        summary: "Uzbekistan Phone Number",
+        value: {
+          phone_number: "+998901234567",
+        },
       },
     },
   })
   @ApiResponse({
     status: 200,
-    description: "OTP sent. `requires_registration` is true for new users.",
-    type: OtpResponseDto,
+    description:
+      "OTP sent successfully. The `requires_registration` flag shows whether this is a new driver.",
+    content: {
+      "application/json": {
+        example: {
+          message: "OTP sent successfully",
+          requires_registration: true,
+          phone_number: "+998901234567",
+          new_otp: "1234", // Only for testing/demo, should be hidden in prod
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 400,
-    description: "Bad Request: Failed to send OTP.",
-    type: ErrorResponseDto,
+    description: "Bad Request: Invalid phone number or failed to send OTP.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 400,
+          message: "Invalid phone number format.",
+          error: "Bad Request",
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 429,
-    description: "Too many requests.",
-    type: ErrorResponseDto,
+    description: "Too many requests (Rate limit exceeded).",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 429,
+          message: "Too many requests",
+          error: "Too Many Requests",
+        },
+      },
+    },
   })
   sendOtp(@Body() sendOtpDto: SendOtpDto) {
     return this.driverService.sendOtp(sendOtpDto);
   }
 
+  //===============VERIFY OTP ==================
+
   @Post("auth/verify-otp")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: "1.2 Verify OTP & Authenticate (Login/Register)",
+    summary: "1.2. Verify OTP & Authenticate Driver (Login/Register)",
+    description:
+      "Verifies the OTP sent to the driver's phone. If the driver is new, registers and logs them in. Sets a `refresh_token` as an HTTP-only cookie.",
     operationId: "driverVerifyOtp",
   })
   @ApiBody({
-    type: VerifyDriverOtpDto,
+    description: "OTP verification payload with phone number and OTP code.",
+    schema: {
+      type: "object",
+      properties: {
+        phone_number: { type: "string", example: "+998901234567" },
+        otp: { type: "string", example: "123456" },
+      },
+      required: ["phone_number", "otp"],
+    },
     examples: {
       valid_otp: {
         summary: "Valid OTP Code",
-        value: { phone_number: "+998901234567", otp: "123456" },
+        value: {
+          phone_number: "+998901234567",
+          otp: "123456",
+        },
       },
     },
   })
   @ApiResponse({
     status: 200,
-    description: "Authentication successful.",
-    type: AuthResponseDto,
+    description:
+      "Authentication successful. Returns driver profile and access token. Sets refresh token as HTTP-only cookie.",
+    headers: {
+      "Set-Cookie": {
+        description: "Refresh token is set as a secure HTTP-only cookie.",
+        schema: {
+          type: "string",
+          example: "refresh_token=...; Path=/; HttpOnly",
+        },
+      },
+    },
+    content: {
+      "application/json": {
+        examples: {
+          login: {
+            summary: "Existing Driver Login",
+            value: {
+              message: "Login successful",
+              driver: {
+                id: 1,
+                phone_number: "+998901234567",
+                name: "Ali Valiyev",
+                is_active: true,
+                is_verified: true,
+              },
+              accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            },
+          },
+          register: {
+            summary: "New Driver Registration",
+            value: {
+              message: "Registration and login successful",
+              driver: {
+                id: 2,
+                phone_number: "+998907654321",
+                name: null,
+                is_active: true,
+                is_verified: true,
+              },
+              accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            },
+          },
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
-    description: "Invalid or expired OTP.",
-    type: ErrorResponseDto,
+    description: "Unauthorized: OTP is invalid or expired.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 401,
+          message: "Invalid or expired OTP",
+          error: "Unauthorized",
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 500,
-    description: "Internal Server Error (e.g., JWT keys not configured).",
-    type: ErrorResponseDto,
+    description:
+      "Internal server error. For example, JWT configuration issues.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 500,
+          message: "Internal server error",
+          error: "Internal Server Error",
+        },
+      },
+    },
   })
   verifyOtpAndAuth(
     @Body() verifyOtpDto: VerifyDriverOtpDto,
@@ -900,23 +289,51 @@ export class DriverController {
   // ================ 2. PROTECTED AUTH & PROFILE ================
   // ============================================================
 
+  //==================== AUTH REFRESH ========================
   @Post("auth/refresh")
   @HttpCode(HttpStatus.OK)
   @ApiCookieAuth("refresh_token")
   @ApiOperation({
-    summary: "2.1 Refresh Access Token",
+    summary: "2.1. Refresh Access Token",
+    description:
+      "Generates a new access token and refresh token using the existing HTTP-only `refresh_token` cookie. The new refresh token is also set as a cookie.",
     operationId: "driverRefreshToken",
   })
   @ApiResponse({
     status: 200,
-    description: "Token refreshed successfully.",
-    type: TokenRefreshResponseDto,
+    description:
+      "Token refreshed successfully. A new access token is returned in the body, and a new refresh token is set as a cookie.",
+    headers: {
+      "Set-Cookie": {
+        description: "New `refresh_token` is set as HTTP-only cookie.",
+        schema: {
+          type: "string",
+          example: "refresh_token=...; Path=/; HttpOnly",
+        },
+      },
+    },
+    content: {
+      "application/json": {
+        example: {
+          message: "Token refreshed successfully",
+          accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
     description:
-      "Invalid, missing, or expired refresh token. Or driver is inactive.",
-    type: ErrorResponseDto,
+      "Unauthorized: Refresh token is missing, invalid, expired, or the driver is inactive.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 401,
+          message: "Invalid, missing, or expired refresh token.",
+          error: "Unauthorized",
+        },
+      },
+    },
   })
   refreshToken(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const refreshToken = req.cookies?.refresh_token;
@@ -925,61 +342,143 @@ export class DriverController {
     return this.driverService.refreshToken(refreshToken, res);
   }
 
+  //==================== LOGOUT ========================
+
   @Post("auth/logout")
   @HttpCode(HttpStatus.OK)
   @ApiCookieAuth("refresh_token")
-  @ApiOperation({ summary: "2.2 Driver Logout", operationId: "driverLogout" })
+  @ApiOperation({
+    summary: "2.2. Logout Driver",
+    description:
+      "Clears the driver's session by deleting the refresh token from the database and removing the `refresh_token` cookie from the client.",
+    operationId: "driverLogout",
+  })
   @ApiResponse({
     status: 200,
-    description: "Logged out successfully.",
-    type: GenericMessageDto,
+    description:
+      "Logout successful. The `refresh_token` cookie is cleared from the client.",
+    headers: {
+      "Set-Cookie": {
+        description: "Clears the HTTP-only refresh token cookie.",
+        schema: {
+          type: "string",
+          example:
+            "refresh_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+        },
+      },
+    },
+    content: {
+      "application/json": {
+        example: {
+          message: "Logged out successfully",
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
-    description: "Invalid or missing refresh token.",
-    type: ErrorResponseDto,
+    description: "Unauthorized: Refresh token is missing or invalid.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 401,
+          message: "Invalid or missing refresh token",
+          error: "Unauthorized",
+        },
+      },
+    },
   })
   logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     return this.driverService.logout(req, res);
   }
+
+  //==================== PROFILE/ME ========================
 
   @Get("profile/me")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver")
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "2.3 Get Own Driver Profile",
+    summary: "2.3. Get Own Driver Profile",
+    description:
+      "Retrieves the authenticated driver's profile using the access token. Requires the user to be logged in and have the 'driver' role.",
     operationId: "getDriverProfile",
   })
   @ApiResponse({
     status: 200,
     description: "Driver profile retrieved successfully.",
-    type: DriverResponseDto,
+    content: {
+      "application/json": {
+        example: {
+          id: 1,
+          phone_number: "+998901234567",
+          name: "Ali Valiyev",
+          profile_photo_url: "https://example.com/photo.jpg",
+          birthday: "1990-05-15T00:00:00.000Z",
+          gender: "male",
+          is_active: true,
+          is_verified: true,
+          refresh_token: null,
+          created_at: "2025-07-11T06:15:00.000Z",
+          updated_at: "2025-07-11T06:20:00.000Z",
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
-    description: "Unauthorized.",
-    type: ErrorResponseDto,
+    description: "Unauthorized: Access token is missing, invalid, or expired.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 401,
+          message: "Unauthorized",
+          error: "Unauthorized",
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 404,
-    description: "Driver not found.",
-    type: ErrorResponseDto,
+    description: "Driver not found in the system.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 404,
+          message: "Driver with ID 1 not found",
+          error: "Not Found",
+        },
+      },
+    },
   })
   getProfile(@GetCurrentUser("id") driverId: number) {
     return this.driverService.findOne(driverId);
   }
+
+  //==================== PROFILE/COMPLETE ========================
 
   @Put("profile/complete")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver")
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "2.4 Complete Driver Profile",
+    summary: "2.4. Complete Driver Profile",
+    description:
+      "Allows an authenticated driver to complete their profile by submitting details such as name and driver license number. Requires a valid access token and `driver` role.",
     operationId: "completeDriverProfile",
   })
   @ApiBody({
-    type: ProfileCompleteDto,
+    description:
+      "Driver profile details. All fields are required to complete the profile.",
+    schema: {
+      type: "object",
+      properties: {
+        first_name: { type: "string", example: "Nodira" },
+        last_name: { type: "string", example: "Karimova" },
+        driver_license_number: { type: "string", example: "UZDL9876543" },
+      },
+      required: ["first_name", "last_name", "driver_license_number"],
+    },
     examples: {
       full_profile: {
         summary: "Full Profile Data",
@@ -993,28 +492,79 @@ export class DriverController {
   })
   @ApiResponse({
     status: 200,
-    description: "Profile completed successfully.",
-    type: GenericMessageDto,
+    description: "Driver profile completed successfully.",
+    content: {
+      "application/json": {
+        example: {
+          message: "Profile completed successfully",
+          driver: {
+            id: 5,
+            phone_number: "+998901234567",
+            first_name: "Nodira",
+            last_name: "Karimova",
+            driver_license_number: "UZDL9876543",
+            is_active: true,
+            is_verified: true,
+            profile_complete: true,
+          },
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 400,
-    description: "Bad Request: Missing required fields.",
-    type: ErrorResponseDto,
+    description: "Bad Request: Some required fields are missing or invalid.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 400,
+          message: [
+            "first_name must be a string",
+            "driver_license_number should not be empty",
+          ],
+          error: "Bad Request",
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
-    description: "Unauthorized.",
-    type: ErrorResponseDto,
+    description: "Unauthorized: Missing or invalid access token.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 401,
+          message: "Unauthorized",
+          error: "Unauthorized",
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 404,
     description: "Driver not found.",
-    type: ErrorResponseDto,
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 404,
+          message: "Driver with ID 5 not found",
+          error: "Not Found",
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 409,
-    description: "Conflict: Driver license already exists.",
-    type: ErrorResponseDto,
+    description: "Conflict: Driver license number already exists.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 409,
+          message: "Driver license number already in use",
+          error: "Conflict",
+        },
+      },
+    },
   })
   completeProfile(
     @GetCurrentUser("id") driverId: number,
@@ -1023,30 +573,72 @@ export class DriverController {
     return this.driverService.completeProfile(driverId, body);
   }
 
+  //==================== STATUS/TOGLE ========================
+
   @Put("status/toggle")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver")
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "2.5 Toggle Online/Offline Status",
+    summary: "2.5. Toggle Driver Online/Offline Status",
+    description:
+      "Allows a driver to update their availability status. This will be used for ride matching logic.",
     operationId: "toggleDriverStatus",
   })
   @ApiBody({
-    type: StatusToggleDto,
+    description: "Update the driver's current availability status.",
+    schema: {
+      type: "object",
+      properties: {
+        isOnline: {
+          type: "boolean",
+          description: "Set to true to go online, false to go offline",
+          example: true,
+        },
+      },
+      required: ["isOnline"],
+    },
     examples: {
-      go_online: { value: { isOnline: true } },
-      go_offline: { value: { isOnline: false } },
+      go_online: {
+        summary: "Go Online",
+        value: { isOnline: true },
+      },
+      go_offline: {
+        summary: "Go Offline",
+        value: { isOnline: false },
+      },
     },
   })
   @ApiResponse({
     status: 200,
-    description: "Driver status updated.",
-    type: GenericMessageDto,
+    description: "Driver status updated successfully.",
+    content: {
+      "application/json": {
+        examples: {
+          online: {
+            summary: "Driver is now online",
+            value: { message: "Driver is now online" },
+          },
+          offline: {
+            summary: "Driver is now offline",
+            value: { message: "Driver is now offline" },
+          },
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
-    description: "Unauthorized.",
-    type: ErrorResponseDto,
+    description: "Unauthorized: Invalid or missing access token.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 401,
+          message: "Unauthorized",
+          error: "Unauthorized",
+        },
+      },
+    },
   })
   async setOnlineStatus(
     @Body() body: StatusToggleDto,
@@ -1059,15 +651,81 @@ export class DriverController {
     return { message: `Driver is now ${body.isOnline ? "online" : "offline"}` };
   }
 
+  //==================== GO ONLINE ========================
+
   @Post("go-online")
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver")
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Driver goes online and sets initial location" })
-  @ApiBody({ type: GoOnlineDto })
-  @ApiResponse({ status: 200, description: "Driver is online and location set" })
+  @ApiOperation({
+    summary: "2.6. Driver Goes Online with Location",
+    description:
+      "Marks the driver as online and sets their initial location in Redis. Required for enabling ride matching.",
+  })
+  @ApiBody({
+    description: "Driver ID and location coordinates.",
+    schema: {
+      type: "object",
+      properties: {
+        driverId: {
+          type: "number",
+          example: 42,
+          description: "Unique ID of the authenticated driver",
+        },
+        lat: {
+          type: "number",
+          example: 41.3111,
+          description: "Latitude of driver's current location",
+        },
+        lng: {
+          type: "number",
+          example: 69.2797,
+          description: "Longitude of driver's current location",
+        },
+      },
+      required: ["driverId", "lat", "lng"],
+    },
+    examples: {
+      go_online: {
+        summary: "Driver sets their location and goes online",
+        value: {
+          driverId: 42,
+          lat: 41.3111,
+          lng: 69.2797,
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Driver is now online and location stored in Redis.",
+    content: {
+      "application/json": {
+        example: {
+          message: "Driver is now online and location updated",
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 500,
+    description: "Internal Server Error: Failed to set status or location.",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 500,
+          message: "Failed to set driver online",
+          error: "Internal Server Error",
+        },
+      },
+    },
+  })
   async goOnline(@Body() goOnlineDto: GoOnlineDto) {
-    return this.driverService.goOnline(goOnlineDto.driverId, goOnlineDto.lat, goOnlineDto.lng);
+    return this.driverService.goOnline(
+      goOnlineDto.driverId,
+      goOnlineDto.lat,
+      goOnlineDto.lng
+    );
   }
 
   @Put("location")
@@ -1078,7 +736,11 @@ export class DriverController {
   @ApiBody({ type: UpdateLocationDto })
   @ApiResponse({ status: 200, description: "Driver location updated" })
   async updateLocation(@Body() updateLocationDto: UpdateLocationDto) {
-    return this.driverService.updateLocation(updateLocationDto.driverId, updateLocationDto.lat, updateLocationDto.lng);
+    return this.driverService.updateLocation(
+      updateLocationDto.driverId,
+      updateLocationDto.lat,
+      updateLocationDto.lng
+    );
   }
 
   // ==================================================
