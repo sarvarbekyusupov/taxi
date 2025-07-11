@@ -45,9 +45,8 @@ export class CreateClientDto {
 }
 
 export class CompleteProfileDto {
-  @IsOptional()
   @IsString()
-  name?: string;
+  name: string;
 
   @IsOptional()
   @IsString()
@@ -61,3 +60,4 @@ export class CompleteProfileDto {
   @IsEnum(["male", "female"])
   gender?: "male" | "female";
 }
+

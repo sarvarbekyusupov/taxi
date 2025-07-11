@@ -56,7 +56,8 @@ async function start() {
         "JWT-auth"
       )
       .addTag("Taxi API")
-      .addSecurityRequirements("JWT-auth")
+      .addSecurityRequirements("bearer", ['bearer'])
+      .addBearerAuth()
       .build();
 
     const swaggerDoc = SwaggerModule.createDocument(app, swaggerConfig);

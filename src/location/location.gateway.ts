@@ -212,5 +212,28 @@ export class LocationGateway implements OnGatewayConnection, OnGatewayDisconnect
       );
     }
   }
+
+  @SubscribeMessage("drivers:all:request")
+  async handleAllDriversRequest(@ConnectedSocket() client: Socket) {
+    try {
+      const driverMembers = (await redisClient.zRange(
+        "drivers:location",
+        0,
+        -1
+      )) as string[];
+      const drivers: DriverLocation[] = [];
+
+      for (const driverId of driverMembers) {
+        const location = await redisClient.get(`driver:${driverId}:location`);
+        if (location) {
+          drivers.push({ driverId, ...JSON.parse(location) });
+        }
+      }
+      client.emit("drivers:all:response", drivers);
+      this.logger.log(`Sent all ${drivers.length} driver locations to a client.`);
+    } catch (error) {
+      this.logger.error(`Error sending all driver locations: ${error.message}`);
+    }
+  }
 }
 
