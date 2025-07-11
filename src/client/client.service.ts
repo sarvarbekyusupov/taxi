@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
+  InternalServerErrorException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -77,8 +78,11 @@ export class ClientService {
       const existingClient = await this.clients.findOneBy({ phone_number });
       const new_otp = await this.otp.storeOtp(phone_number);
 
-      await this.telegramService.sendOtpToChannel(new_otp, phone_number, 'client');
-
+      await this.telegramService.sendOtpToChannel(
+        new_otp,
+        phone_number,
+        "client"
+      );
 
       return {
         message: "OTP sent successfully",
@@ -254,10 +258,23 @@ export class ClientService {
   }
 
   async completeProfile(clientId: number, dto: CompleteProfileDto) {
-    const client = await this.clients.findOneBy({ id: clientId });
-    if (!client) throw new NotFoundException("Client not found");
+    try {
+      const client = await this.clients.findOneBy({ id: clientId });
+      if (!client) throw new NotFoundException("Client not found");
 
-    await this.clients.update({ id: clientId }, dto);
-    return { message: "Profile completed successfully" };
+      // Apply fields manually
+      client.name = dto.name;
+      client.profile_photo_url =
+        dto.profile_photo_url ?? client.profile_photo_url;
+      client.gender = dto.gender ?? client.gender;
+      client.birthday = dto.birthday ? new Date(dto.birthday) : client.birthday;
+
+      await this.clients.save(client);
+
+      return { message: "Profile completed successfully" };
+    } catch (error) {
+      console.error("Error in completeProfile:", error);
+      throw new InternalServerErrorException("Something went wrong");
+    }
   }
 }

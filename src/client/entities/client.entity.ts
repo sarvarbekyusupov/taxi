@@ -22,8 +22,8 @@ export class Client {
   name: string | null;
 
   @IsOptional()
-  @IsDateString()
-  birthday?: string;
+  @Column({ type: "timestamp", nullable: true })
+  birthday?: Date;
 
   @IsOptional()
   @IsIn(["male", "female"])
