@@ -11,5 +11,6 @@ import { TelegramModule } from '../telegram/telegram.module';
   imports:[TypeOrmModule.forFeature([Driver]),OtpModule, AuthModule, TelegramModule],
   controllers: [DriverController],
   providers: [DriverService],
+  exports: [DriverService],
 })
 export class DriverModule {}

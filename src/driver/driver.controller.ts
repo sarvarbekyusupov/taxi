@@ -38,6 +38,9 @@ import {
   ApiCookieAuth,
   ApiParam,
   ApiQuery,
+  ApiOkResponse,
+  ApiUnauthorizedResponse,
+  ApiInternalServerErrorResponse,
 } from "@nestjs/swagger";
 import { RoleGuard } from "../auth/role.guard";
 import { Roles } from "../common/decorators/role.decorator";
@@ -180,11 +183,11 @@ export class DriverController {
   @ApiOperation({
     summary: "1.2. Verify OTP & Authenticate Driver (Login/Register)",
     description:
-      "Verifies the OTP sent to the driver's phone. If the driver is new, registers and logs them in. Sets a `refresh_token` as an HTTP-only cookie.",
+      "Verifies the OTP sent to the driver's phone. If the driver is new, registers them. Returns access token and sets `refresh_token` as an HTTP-only cookie.",
     operationId: "driverVerifyOtp",
   })
   @ApiBody({
-    description: "OTP verification payload with phone number and OTP code.",
+    description: "OTP verification payload",
     schema: {
       type: "object",
       properties: {
@@ -203,16 +206,16 @@ export class DriverController {
       },
     },
   })
-  @ApiResponse({
-    status: 200,
+  @ApiOkResponse({
     description:
-      "Authentication successful. Returns driver profile and access token. Sets refresh token as HTTP-only cookie.",
+      "Authentication successful. Returns driver profile and access token. Refresh token is set as HTTP-only cookie.",
     headers: {
       "Set-Cookie": {
-        description: "Refresh token is set as a secure HTTP-only cookie.",
+        description: "Refresh token is set as secure HttpOnly cookie",
         schema: {
           type: "string",
-          example: "refresh_token=...; Path=/; HttpOnly",
+          example:
+            "refresh_token=...; Path=/; HttpOnly; Secure; SameSite=Strict",
         },
       },
     },
@@ -223,12 +226,16 @@ export class DriverController {
             summary: "Existing Driver Login",
             value: {
               message: "Login successful",
+              requires_registration: false,
               driver: {
-                id: 1,
+                id: 12,
                 phone_number: "+998901234567",
-                name: "Ali Valiyev",
+                first_name: null,
+                last_name: null,
+                driver_license_number: null,
                 is_active: true,
-                is_verified: true,
+                is_verified: false,
+                profile_complete: false,
               },
               accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
             },
@@ -237,12 +244,16 @@ export class DriverController {
             summary: "New Driver Registration",
             value: {
               message: "Registration and login successful",
+              requires_registration: true,
               driver: {
-                id: 2,
+                id: 13,
                 phone_number: "+998907654321",
-                name: null,
+                first_name: null,
+                last_name: null,
+                driver_license_number: null,
                 is_active: true,
-                is_verified: true,
+                is_verified: false,
+                profile_complete: false,
               },
               accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
             },
@@ -251,8 +262,7 @@ export class DriverController {
       },
     },
   })
-  @ApiResponse({
-    status: 401,
+  @ApiUnauthorizedResponse({
     description: "Unauthorized: OTP is invalid or expired.",
     content: {
       "application/json": {
@@ -264,15 +274,13 @@ export class DriverController {
       },
     },
   })
-  @ApiResponse({
-    status: 500,
-    description:
-      "Internal server error. For example, JWT configuration issues.",
+  @ApiInternalServerErrorResponse({
+    description: "Internal Server Error: e.g., JWT config issues",
     content: {
       "application/json": {
         example: {
           statusCode: 500,
-          message: "Internal server error",
+          message: "Authentication failed",
           error: "Internal Server Error",
         },
       },
@@ -418,9 +426,6 @@ export class DriverController {
           gender: "male",
           is_active: true,
           is_verified: true,
-          refresh_token: null,
-          created_at: "2025-07-11T06:15:00.000Z",
-          updated_at: "2025-07-11T06:20:00.000Z",
         },
       },
     },
@@ -728,20 +733,20 @@ export class DriverController {
     );
   }
 
-  @Put("location")
-  @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("driver")
-  @ApiBearerAuth()
-  @ApiOperation({ summary: "Continuously update driver's current location" })
-  @ApiBody({ type: UpdateLocationDto })
-  @ApiResponse({ status: 200, description: "Driver location updated" })
-  async updateLocation(@Body() updateLocationDto: UpdateLocationDto) {
-    return this.driverService.updateLocation(
-      updateLocationDto.driverId,
-      updateLocationDto.lat,
-      updateLocationDto.lng
-    );
-  }
+  // @Put("location")
+  // @UseGuards(RoleGuard, UserCategoryGuard)
+  // @Roles("driver")
+  // @ApiBearerAuth()
+  // @ApiOperation({ summary: "Continuously update driver's current location" })
+  // @ApiBody({ type: UpdateLocationDto })
+  // @ApiResponse({ status: 200, description: "Driver location updated" })
+  // async updateLocation(@Body() updateLocationDto: UpdateLocationDto) {
+  //   return this.driverService.updateLocation(
+  //     updateLocationDto.driverId,
+  //     updateLocationDto.lat,
+  //     updateLocationDto.lng
+  //   );
+  // }
 
   // ==================================================
   // ================ 3. ADMIN ROUTES =================
@@ -981,5 +986,24 @@ export class DriverController {
   })
   remove(@Param("id", ParseIntPipe) id: number) {
     return this.driverService.remove(id);
+  }
+
+  @Get("locations")
+  // @UseGuards(RoleGuard)
+  // @Roles("admin", "super_admin")
+  // @ApiBearerAuth()
+  @ApiOperation({ summary: "Get all online driver locations" })
+  @ApiResponse({
+    status: 200,
+    description: "List of drivers with current locations",
+    schema: {
+      example: [
+        { driverId: "1", lat: 40.123, lng: 71.456 },
+        { driverId: "2", lat: 40.789, lng: 71.987 },
+      ],
+    },
+  })
+  async getAllDriverLocations() {
+    return await this.driverService.getAllDriverLocations();
   }
 }

@@ -26,9 +26,7 @@ export class DriverService {
     private readonly drivers: Repository<Driver>,
     private readonly otp: OtpService,
     private readonly jwtService: JwtTokenService,
-        private readonly telegramService: TelegramService
-    
-
+    private readonly telegramService: TelegramService
   ) {}
 
   /**
@@ -222,7 +220,6 @@ export class DriverService {
         phone_number,
         "driver"
       );
-
 
       return {
         message: "OTP sent successfully",
@@ -891,7 +888,11 @@ export class DriverService {
     }
   }
 
-  async goOnline(driverId: number, lat: number, lng: number): Promise<{ message: string }> {
+  async goOnline(
+    driverId: number,
+    lat: number,
+    lng: number
+  ): Promise<{ message: string }> {
     try {
       await redisClient.set(`driver:${driverId}:status`, "online");
       await redisClient.geoAdd("drivers:location", {
@@ -910,21 +911,60 @@ export class DriverService {
     }
   }
 
-  async updateLocation(driverId: number, lat: number, lng: number): Promise<{ message: string }> {
+  async updateLocation(
+    driverId: number,
+    lat: number,
+    lng: number
+  ): Promise<{ message: string }> {
     try {
-      await redisClient.geoAdd("drivers:location", {
+      const geoResult = await redisClient.geoAdd("drivers:location", {
         longitude: lng,
         latitude: lat,
         member: driverId.toString(),
       });
-      await redisClient.set(
+      console.log(`GEOADD result for driver ${driverId}:`, geoResult);
+
+      const setResult = await redisClient.set(
         `driver:${driverId}:location`,
         JSON.stringify({ lat, lng })
       );
+      console.log(`SET result for driver ${driverId}:`, setResult); // Should be "OK"
+
       return { message: "Driver location updated" };
     } catch (error) {
       console.error("Update location error:", error);
-      throw new InternalServerErrorException("Failed to update driver location");
+      throw new InternalServerErrorException(
+        "Failed to update driver location"
+      );
+    }
+  }
+
+  async getAllDriverLocations(): Promise<
+    { driverId: string; lat: number; lng: number }[]
+  > {
+    try {
+      const driverIds = (await redisClient.zRange(
+        "drivers:location",
+        0,
+        -1
+      )) as string[];
+
+      const locations: { driverId: string; lat: number; lng: number }[] = [];
+
+      for (const driverId of driverIds) {
+        const location = await redisClient.get(`driver:${driverId}:location`);
+        if (location) {
+          const { lat, lng } = JSON.parse(location);
+          locations.push({ driverId, lat, lng });
+        }
+      }
+
+      return locations;
+    } catch (error) {
+      console.error("Failed to get all driver locations:", error);
+      throw new InternalServerErrorException(
+        "Failed to fetch driver locations"
+      );
     }
   }
 }
