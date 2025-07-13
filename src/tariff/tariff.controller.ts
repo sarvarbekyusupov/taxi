@@ -24,13 +24,13 @@ import {
 } from "@nestjs/swagger";
 
 @ApiTags("Tariffs")
-@ApiBearerAuth() // <- Swaggerda Bearer token uchun
 @Controller("tariff")
-@UseGuards(RoleGuard, UserCategoryGuard)
-@Roles("admin", "super_admin")
 export class TariffController {
   constructor(private readonly tariffService: TariffService) {}
 
+  @ApiBearerAuth() // <- Swaggerda Bearer token uchun
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("admin", "super_admin")
   @Post()
   @ApiOperation({ summary: "Create a new tariff" })
   @ApiBody({
@@ -54,7 +54,7 @@ export class TariffController {
   create(@Body() dto: CreateTariffDto) {
     return this.tariffService.create(dto);
   }
-
+  
   @Get()
   @ApiOperation({ summary: "Get all tariffs with service area relation" })
   findAll() {
@@ -68,6 +68,9 @@ export class TariffController {
     return this.tariffService.findOne(id);
   }
 
+  @ApiBearerAuth() // <- Swaggerda Bearer token uchun
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("admin", "super_admin")
   @Patch(":id")
   @ApiOperation({ summary: "Update tariff by ID" })
   @ApiParam({ name: "id", type: Number, example: 1 })
@@ -75,6 +78,9 @@ export class TariffController {
     return this.tariffService.update(id, dto);
   }
 
+  @ApiBearerAuth() // <- Swaggerda Bearer token uchun
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("admin", "super_admin")
   @Delete(":id")
   @ApiOperation({ summary: "Delete tariff by ID" })
   @ApiParam({ name: "id", type: Number, example: 1 })

@@ -9,6 +9,7 @@ import {
 } from "typeorm";
 import { ApiProperty } from "@nestjs/swagger";
 import { ServiceArea } from "../../service-areas/entities/service-area.entity";
+import { CarType } from "./car.tariff.entity";
 
 @Entity("tariffs")
 export class Tariff {
@@ -27,6 +28,11 @@ export class Tariff {
   @ApiProperty({ example: "Economy" })
   @Column()
   car_type: string;
+
+  // @ApiProperty({ type: () => CarType })
+  // @ManyToOne(() => CarType, { nullable: false })
+  // @JoinColumn({ name: "car_type_id" })
+  // car_type: CarType;
 
   @ApiProperty()
   @Column("decimal", { precision: 10, scale: 2 })

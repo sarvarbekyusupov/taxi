@@ -18,6 +18,7 @@ import * as bcrypt from "bcrypt";
 import { Request, Response } from "express";
 import { redisClient } from "../redis/redis.provider";
 import { TelegramService } from "../telegram/telegram.service";
+import { UpdateLicenseDto } from "./dto/update-license.dto";
 
 @Injectable()
 export class DriverService {
@@ -103,6 +104,7 @@ export class DriverService {
     try {
       const driver = await this.drivers.findOne({
         where: { id },
+        relations: ["sessions"],
         select: [
           "id",
           "phone_number",
@@ -966,5 +968,22 @@ export class DriverService {
         "Failed to fetch driver locations"
       );
     }
+  }
+
+  async updateLicenseInfo(
+    driverId: number,
+    dto: UpdateLicenseDto
+  ): Promise<{ message: string }> {
+    const driver = await this.drivers.findOneBy({ id: driverId });
+    if (!driver) {
+      throw new NotFoundException("Driver not found");
+    }
+
+    driver.driver_license_number = dto.driver_license_number;
+    driver.driver_license_url = dto.driver_license_url;
+
+    await this.drivers.save(driver);
+
+    return { message: "Driver license info updated successfully" };
   }
 }

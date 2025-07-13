@@ -5,10 +5,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Tariff } from './entities/tariff.entity';
 import { ServiceArea } from '../service-areas/entities/service-area.entity';
 import { AuthModule } from '../auth/auth.module';
+import { CarType } from './entities/car.tariff.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Tariff, ServiceArea]), AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([Tariff, ServiceArea, CarType]),
+    AuthModule,
+  ],
   controllers: [TariffController],
-  providers: [TariffService, ],
+  providers: [TariffService],
 })
 export class TariffModule {}

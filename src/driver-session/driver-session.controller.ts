@@ -31,7 +31,7 @@ export class DriverSessionController {
   }
 
   @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("driver") // Only drivers can access this controller
+  @Roles("admin", "super_admin")
   @Get()
   @ApiOperation({ summary: "Get all driver sessions" })
   findAll() {
@@ -39,7 +39,7 @@ export class DriverSessionController {
   }
 
   @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("driver") // Only drivers can access this controller
+  @Roles("driver", "admin", "super_admin")
   @Get(":id")
   @ApiOperation({ summary: "Get a specific driver session by ID" })
   findOne(@Param("id") id: string) {
@@ -47,7 +47,7 @@ export class DriverSessionController {
   }
 
   @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("driver") // Only drivers can access this controller
+  @Roles("driver", "admin", "super_admin")
   @Patch(":id")
   @ApiOperation({ summary: "Update a driver session by ID" })
   update(
@@ -58,7 +58,7 @@ export class DriverSessionController {
   }
 
   @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("driver") // Only drivers can access this controller
+  @Roles("driver","admin", "super_admin") 
   @Delete(":id")
   @ApiOperation({ summary: "Delete a driver session by ID" })
   remove(@Param("id") id: string) {

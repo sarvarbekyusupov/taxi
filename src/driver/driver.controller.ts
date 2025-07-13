@@ -47,6 +47,7 @@ import { Roles } from "../common/decorators/role.decorator";
 import { UserCategoryGuard } from "../auth/user.guard";
 import { GetCurrentUser } from "../common/decorators/get-current-user.decorator";
 import { redisClient } from "../redis/redis.provider";
+import { UpdateLicenseDto } from "./dto/update-license.dto";
 
 // ==================================
 // ======== SWAGGER DTOs ============
@@ -824,9 +825,9 @@ export class DriverController {
   }
 
   @Get("admin/:id")
-  @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("admin")
-  @ApiBearerAuth()
+  // @UseGuards(RoleGuard, UserCategoryGuard)
+  // @Roles("admin")
+  // @ApiBearerAuth()
   @ApiOperation({
     summary: "3.4 [ADMIN] Get Driver by ID",
     operationId: "adminGetDriverById",
@@ -1006,4 +1007,90 @@ export class DriverController {
   async getAllDriverLocations() {
     return await this.driverService.getAllDriverLocations();
   }
+
+  @Patch("profile/license")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("driver")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "2.7. Update Driver License Info",
+    description:
+      "Allows driver to upload/update their license number and license image URL.",
+  })
+  @ApiBody({
+    type: UpdateLicenseDto,
+    examples: {
+      sample: {
+        value: {
+          driver_license_number: "DL1234567890",
+          driver_license_url: "https://cdn.example.com/license.jpg",
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Driver license info updated successfully",
+    content: {
+      "application/json": {
+        example: {
+          message: "Driver license info updated successfully",
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Validation failed",
+    schema: {
+      example: {
+        statusCode: 400,
+        message: ["driver_license_url must be a valid URL"],
+        error: "Bad Request",
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Unauthorized: Access token is missing or invalid",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 401,
+          message: "Unauthorized",
+          error: "Unauthorized",
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Driver not found",
+    content: {
+      "application/json": {
+        example: {
+          statusCode: 404,
+          message: "Driver with ID 12 not found",
+          error: "Not Found",
+        },
+      },
+    },
+  })
+  async updateDriverLicense(
+    @GetCurrentUser("id") driverId: number,
+    @Body() dto: UpdateLicenseDto
+  ) {
+    return this.driverService.updateLicenseInfo(driverId, dto);
+  }
 }
+
+
+
+
+
+
+
+
+
+
+
