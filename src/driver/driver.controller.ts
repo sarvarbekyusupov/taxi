@@ -47,7 +47,7 @@ import { Roles } from "../common/decorators/role.decorator";
 import { UserCategoryGuard } from "../auth/user.guard";
 import { GetCurrentUser } from "../common/decorators/get-current-user.decorator";
 import { redisClient } from "../redis/redis.provider";
-import { UpdateLicenseDto } from "./dto/update-license.dto";
+import { UpdateDocumentsDto } from "./dto/update-license.dto";
 
 // ==================================
 // ======== SWAGGER DTOs ============
@@ -1008,20 +1008,24 @@ export class DriverController {
     return await this.driverService.getAllDriverLocations();
   }
 
-  @Patch("profile/license")
+   @Patch("profile/documents") // <<< Marshrutni o'zgartirdik
   @UseGuards(RoleGuard, UserCategoryGuard)
   @Roles("driver")
   @ApiBearerAuth()
   @ApiOperation({
-    summary: "2.7. Update Driver License Info",
+    summary: "2.7. Update Driver Documents", // <<< Sarlavhani o'zgartirdik
     description:
-      "Allows driver to upload/update their license number and license image URL.",
+      "Haydovchiga hujjatlari (pasport, litsenziya va h.k.) uchun URL manzillarini yuklash/yangilash imkonini beradi.",
   })
   @ApiBody({
-    type: UpdateLicenseDto,
+    type: UpdateDocumentsDto, // <<< Yangi DTO'ni ishlatamiz
     examples: {
       sample: {
         value: {
+          passport_url: "https://cdn.example.com/passport.jpg",
+          vehicle_technical_passport_url: "https://cdn.example.com/tech_passport.jpg",
+          passenger_license_url: "https://cdn.example.com/passenger_license.jpg",
+          self_employment_certificate_url: "https://cdn.example.com/self_employed.jpg",
           driver_license_number: "DL1234567890",
           driver_license_url: "https://cdn.example.com/license.jpg",
         },
@@ -1030,67 +1034,19 @@ export class DriverController {
   })
   @ApiResponse({
     status: 200,
-    description: "Driver license info updated successfully",
+    description: "Haydovchi hujjatlari muvaffaqiyatli yangilandi",
     content: {
       "application/json": {
         example: {
-          message: "Driver license info updated successfully",
+          message: "Driver documents updated successfully",
         },
       },
     },
   })
-  @ApiResponse({
-    status: 400,
-    description: "Validation failed",
-    schema: {
-      example: {
-        statusCode: 400,
-        message: ["driver_license_url must be a valid URL"],
-        error: "Bad Request",
-      },
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: "Unauthorized: Access token is missing or invalid",
-    content: {
-      "application/json": {
-        example: {
-          statusCode: 401,
-          message: "Unauthorized",
-          error: "Unauthorized",
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 404,
-    description: "Driver not found",
-    content: {
-      "application/json": {
-        example: {
-          statusCode: 404,
-          message: "Driver with ID 12 not found",
-          error: "Not Found",
-        },
-      },
-    },
-  })
-  async updateDriverLicense(
+  // ... boshqa ApiResponse'lar qoladi
+  async updateDriverDocuments( // <<< Funksiya nomini o'zgartirdik
     @GetCurrentUser("id") driverId: number,
-    @Body() dto: UpdateLicenseDto
+    @Body() dto: UpdateDocumentsDto // <<< Yangi DTO'ni ishlatamiz
   ) {
-    return this.driverService.updateLicenseInfo(driverId, dto);
-  }
-}
-
-
-
-
-
-
-
-
-
-
-
+    return this.driverService.updateDocumentsInfo(driverId, dto); // <<< Service funksiyasini chaqiramiz
+  }}
