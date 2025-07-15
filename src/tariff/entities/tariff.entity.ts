@@ -29,6 +29,14 @@ export class Tariff {
   @Column()
   car_type: string;
 
+  @ApiProperty()
+  @Column()
+  region_id: number;
+
+  @ApiProperty()
+  @Column()
+  district_id: number;
+
   // @ApiProperty({ type: () => CarType })
   // @ManyToOne(() => CarType, { nullable: false })
   // @JoinColumn({ name: "car_type_id" })

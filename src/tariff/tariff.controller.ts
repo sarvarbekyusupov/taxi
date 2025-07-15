@@ -39,7 +39,8 @@ export class TariffController {
       default: {
         summary: "Basic economy tariff",
         value: {
-          service_area_id: 1,
+          region_id: 1,
+          district_id: 1,
           car_type: "Economy",
           base_fare: 10000,
           per_km_rate: 1500,
@@ -54,7 +55,7 @@ export class TariffController {
   create(@Body() dto: CreateTariffDto) {
     return this.tariffService.create(dto);
   }
-  
+
   @Get()
   @ApiOperation({ summary: "Get all tariffs with service area relation" })
   findAll() {

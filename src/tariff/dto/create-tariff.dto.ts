@@ -9,16 +9,26 @@ import {
 import { Type } from "class-transformer";
 
 export class CreateTariffDto {
-  @ApiProperty({ example: 1 })
-  @IsNotEmpty()
-  @Type(() => Number)
-  @IsNumber()
-  service_area_id: number;
+  // @ApiProperty({ example: 1 })
+  // @IsNotEmpty()
+  // @Type(() => Number)
+  // @IsNumber()
+  // service_area_id: number;
 
   @ApiProperty({ example: "Economy" })
   @IsNotEmpty()
   @IsString()
   car_type: string;
+
+  @ApiProperty({ example: 1, description: "ID of the region" })
+  @IsNotEmpty()
+  @IsNumber()
+  region_id: number;
+
+  @ApiProperty({ example: 1, description: "ID of the district" })
+  @IsNotEmpty()
+  @IsNumber()
+  district_id: number;
 
   @ApiProperty({ example: 10000 })
   @IsPositive()

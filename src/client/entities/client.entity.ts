@@ -48,6 +48,15 @@ export class Client {
   @Column({ type: "text", nullable: true })
   refresh_token: string | null;
 
+  @IsOptional()
+  @Column({ type: "text", nullable: true })
+  @ApiProperty({
+    description: "Firebase Cloud Messaging (FCM) token for push notifications",
+    example: "e-Yy...1J4:APA91bH...o_Q",
+    required: false,
+  })
+  fcm_token?: string;
+
   @Column({ default: null })
   @ApiProperty({ example: 7892 })
   @IsOptional()

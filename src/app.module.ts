@@ -57,9 +57,11 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { TelegramService } from "./telegram/telegram.service";
 import { TelegramModule } from "./telegram/telegram.module";
 // import { PaymeModule } from './payme/payme.module';
+import { FirebaseModule } from './firebase/firebase.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({ cache: true }),
     ScheduleModule.forRoot(),
     BullModule.forRoot({
       redis: {
@@ -129,6 +131,7 @@ import { TelegramModule } from "./telegram/telegram.module";
     MailModule,
     LocationModule,
     TelegramModule,
+    FirebaseModule,
     // PaymeModule,
   ],
   controllers: [],

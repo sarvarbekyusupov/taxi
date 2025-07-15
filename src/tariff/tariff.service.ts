@@ -16,23 +16,25 @@ export class TariffService {
   ) {}
 
   async create(dto: CreateTariffDto): Promise<Tariff> {
-    const serviceArea = await this.serviceAreaRepository.findOneBy({
-      id: dto.service_area_id,
-    });
+    // const serviceArea = await this.serviceAreaRepository.findOneBy({
+    //   id: dto.service_area_id,
+    // });
 
-    if (!serviceArea) {
-      throw new NotFoundException("Service area not found");
-    }
+    // if (!serviceArea) {
+    //   throw new NotFoundException("Service area not found");
+    // }
 
     const tariff = this.tariffRepository.create({
       car_type: dto.car_type,
+      region_id: dto.region_id,
+      district_id: dto.district_id,
       base_fare: dto.base_fare,
       per_km_rate: dto.per_km_rate,
       per_minute_rate: dto.per_minute_rate,
       minimum_fare: dto.minimum_fare,
       cancellation_fee: dto.cancellation_fee,
       is_active: dto.is_active,
-      service_area: serviceArea,
+      // service_area: serviceArea,
     });
 
     return this.tariffRepository.save(tariff);

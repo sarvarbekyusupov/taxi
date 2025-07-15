@@ -7,6 +7,7 @@ import { DriverEarning } from "../../driver-earnings/entities/driver-earning.ent
 import { DriverPayout } from "../../driver-payouts/entities/driver-payout.entity";
 import { DriverSession } from "../../driver-session/entities/driver-session.entity";
 import { Rating } from "../../ratings/entities/rating.entity";
+import { IsOptional } from "class-validator";
 
 @Entity("drivers")
 export class Driver {
@@ -88,6 +89,15 @@ export class Driver {
 
   @Column({ default: false })
   isOnline: boolean;
+
+  @IsOptional()
+  @Column({ type: "text", nullable: true })
+  @ApiProperty({
+    description: "Firebase Cloud Messaging (FCM) token for push notifications",
+    example: "e-Yy...1J4:APA91bH...o_Q",
+    required: false,
+  })
+  fcm_token?: string;
 
   @Column({ nullable: true })
   currentRideId: number; // null if not in a ride
