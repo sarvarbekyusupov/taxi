@@ -54,7 +54,6 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+git
 
-
-*.json
-src/firebase/*.json
+mytaxi-ff4f6-firebase-adminsdk-fbsvc-93f276c870.json
