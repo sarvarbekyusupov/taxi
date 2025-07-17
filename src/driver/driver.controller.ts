@@ -47,7 +47,7 @@ import { Roles } from "../common/decorators/role.decorator";
 import { UserCategoryGuard } from "../auth/user.guard";
 import { GetCurrentUser } from "../common/decorators/get-current-user.decorator";
 import { redisClient } from "../redis/redis.provider";
-import { UpdateDocumentsDto } from "./dto/update-license.dto";
+import {  UpdateDriverDocumentsApiDto } from "./dto/update-license.dto";
 
 // ==================================
 // ======== SWAGGER DTOs ============
@@ -1008,45 +1008,67 @@ export class DriverController {
     return await this.driverService.getAllDriverLocations();
   }
 
-   @Patch("profile/documents") // <<< Marshrutni o'zgartirdik
-  @UseGuards(RoleGuard, UserCategoryGuard)
-  @Roles("driver")
-  @ApiBearerAuth()
+  @Patch("profile/documents")
+  @HttpCode(HttpStatus.OK) // Set the status code to 200 OK on success
+  @UseGuards(RoleGuard) // Use a custom guard to check user roles
+  @Roles("driver") // Specify that only users with the 'driver' role can access this
+  @ApiBearerAuth() // Indicate in Swagger that this endpoint requires a bearer token
   @ApiOperation({
-    summary: "2.7. Update Driver Documents", // <<< Sarlavhani o'zgartirdik
+    summary: "2.7. Update Driver Documents",
     description:
-      "Haydovchiga hujjatlari (pasport, litsenziya va h.k.) uchun URL manzillarini yuklash/yangilash imkonini beradi.",
+      "Allows a driver to upload or update URLs for their documents (e.g., identity card, driver's license). Haydovchiga hujjatlari uchun URL manzillarini yuklash/yangilash imkonini beradi.",
   })
   @ApiBody({
-    type: UpdateDocumentsDto, // <<< Yangi DTO'ni ishlatamiz
+    // Describe the expected request body structure
+    type: UpdateDriverDocumentsApiDto,
     examples: {
-      sample: {
+      // Provide a clear example of the expected payload
+      successful_update: {
+        summary: "Example payload for updating documents",
         value: {
-          passport_url: "https://cdn.example.com/passport.jpg",
-          vehicle_technical_passport_url: "https://cdn.example.com/tech_passport.jpg",
-          passenger_license_url: "https://cdn.example.com/passenger_license.jpg",
-          self_employment_certificate_url: "https://cdn.example.com/self_employed.jpg",
-          driver_license_number: "DL1234567890",
-          driver_license_url: "https://cdn.example.com/license.jpg",
+          documents: {
+            identityCard:
+              "https://firebase.storage.googleapis.com/.../passport.jpg",
+            drivingLicence:
+              "https://firebase.storage.googleapis.com/.../license.jpg",
+            vehicleInformation:
+              "https://firebase.storage.googleapis.com/.../tech_passport.jpg",
+            passengerLicence:
+              "https://firebase.storage.googleapis.com/.../passenger_license.jpg",
+            selfEmploymentCertificate:
+              "https://firebase.storage.googleapis.com/.../self_employed.jpg",
+          },
         },
       },
     },
   })
   @ApiResponse({
     status: 200,
-    description: "Haydovchi hujjatlari muvaffaqiyatli yangilandi",
-    content: {
-      "application/json": {
-        example: {
-          message: "Driver documents updated successfully",
-        },
+    description:
+      "Driver documents updated successfully. Haydovchi hujjatlari muvaffaqiyatli yangilandi.",
+    schema: {
+      example: {
+        message: "Driver documents updated successfully",
       },
     },
   })
-  // ... boshqa ApiResponse'lar qoladi
-  async updateDriverDocuments( // <<< Funksiya nomini o'zgartirdik
+  @ApiResponse({
+    status: 401,
+    description: "Unauthorized. Token is invalid or missing.",
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the "driver" role.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Not Found. The driver profile could not be found.",
+  })
+  async updateDriverDocuments(
+    // <<< Funksiya nomini o'zgartirdik
     @GetCurrentUser("id") driverId: number,
-    @Body() dto: UpdateDocumentsDto // <<< Yangi DTO'ni ishlatamiz
+    @Body() dto: UpdateDriverDocumentsApiDto // <<< Yangi DTO'ni ishlatamiz
   ) {
     return this.driverService.updateDocumentsInfo(driverId, dto); // <<< Service funksiyasini chaqiramiz
-  }}
+  }
+}

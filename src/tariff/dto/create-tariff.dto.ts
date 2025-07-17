@@ -5,30 +5,34 @@ import {
   IsNumber,
   IsPositive,
   IsString,
+  MinLength,
 } from "class-validator";
 import { Type } from "class-transformer";
 
 export class CreateTariffDto {
-  // @ApiProperty({ example: 1 })
-  // @IsNotEmpty()
-  // @Type(() => Number)
-  // @IsNumber()
-  // service_area_id: number;
-
-  @ApiProperty({ example: "Economy" })
-  @IsNotEmpty()
+  @ApiProperty({
+    example: "Economy",
+    description: "The unique name for the tariff.",
+  })
   @IsString()
-  car_type: string;
-
-  @ApiProperty({ example: 1, description: "ID of the region" })
   @IsNotEmpty()
-  @IsNumber()
-  region_id: number;
+  @MinLength(3)
+  name: string;
 
-  @ApiProperty({ example: 1, description: "ID of the district" })
-  @IsNotEmpty()
+  @ApiProperty({
+    example: 1,
+    description: "The ID of the service area this tariff applies to.",
+  })
   @IsNumber()
-  district_id: number;
+  service_area_id: number;
+
+  @ApiProperty({
+    example: 2,
+    description: "The ID of the car type this tariff is for.",
+  })
+  @IsNumber()
+  @IsNotEmpty()
+  car_type_id: number;
 
   @ApiProperty({ example: 10000 })
   @IsPositive()

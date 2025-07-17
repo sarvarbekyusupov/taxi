@@ -14,7 +14,10 @@ export class CreateRideDto {
   @IsNotEmpty()
   pickup_longitude: number;
 
-  @ApiProperty({ example: "Tashkent City Center", description: "Pickup address" })
+  @ApiProperty({
+    example: "Tashkent City Center",
+    description: "Pickup address",
+  })
   @IsString()
   @IsNotEmpty()
   pickup_address: string;
@@ -29,7 +32,10 @@ export class CreateRideDto {
   @IsNotEmpty()
   destination_longitude: number;
 
-  @ApiProperty({ example: "Yunusobod District", description: "Destination address" })
+  @ApiProperty({
+    example: "Yunusobod District",
+    description: "Destination address",
+  })
   @IsString()
   @IsNotEmpty()
   destination_address: string;
@@ -39,7 +45,10 @@ export class CreateRideDto {
   @IsNotEmpty()
   client_id: number;
 
-  @ApiProperty({ example: 8.6, description: "Estimated distance in kilometers" })
+  @ApiProperty({
+    example: 8.6,
+    description: "Estimated distance in kilometers",
+  })
   @IsNumber()
   @IsNotEmpty()
   estimated_distance: number;
@@ -54,17 +63,27 @@ export class CreateRideDto {
   @IsNotEmpty()
   service_area_id: number;
 
-  @ApiProperty({ example: "cash", enum: PaymentMethod, description: "Payment method for the ride" })
+  @ApiProperty({
+    example: "cash",
+    enum: PaymentMethod,
+    description: "Payment method for the ride",
+  })
   @IsEnum(PaymentMethod)
   @IsNotEmpty()
   payment_method: PaymentMethod;
 
-  @ApiProperty({ example: null, description: "ID of the promo code used (optional)" })
+  @ApiProperty({
+    example: null,
+    description: "ID of the promo code used (optional)",
+  })
   @IsNumber()
   @IsOptional()
   promo_code_id?: number;
 
-  @ApiProperty({ example: 0, description: "Discount amount applied (optional)" })
+  @ApiProperty({
+    example: 0,
+    description: "Discount amount applied (optional)",
+  })
   @IsNumber()
   @IsOptional()
   discount_amount?: number;
@@ -73,4 +92,9 @@ export class CreateRideDto {
   @IsEnum(TariffType)
   @IsNotEmpty()
   tariff_type: TariffType;
+
+  @ApiProperty({ example: 2, description: "ID of the car type for the ride" })
+  @IsNumber()
+  @IsNotEmpty()
+  car_type_id: number;
 }

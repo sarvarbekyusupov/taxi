@@ -18,7 +18,7 @@ import * as bcrypt from "bcrypt";
 import { Request, Response } from "express";
 import { redisClient } from "../redis/redis.provider";
 import { TelegramService } from "../telegram/telegram.service";
-import { UpdateDocumentsDto } from "./dto/update-license.dto";
+import {  UpdateDriverDocumentsApiDto } from "./dto/update-license.dto";
 
 @Injectable()
 export class DriverService {
@@ -988,18 +988,34 @@ export class DriverService {
   // }
 
   async updateDocumentsInfo(
-    // <<< Funksiya nomini o'zgartirdik
     driverId: number,
-    dto: UpdateDocumentsDto // <<< Yangi DTO'ni ishlatamiz
+    dto: UpdateDriverDocumentsApiDto // <-- Use the new DTO here
   ): Promise<{ message: string }> {
     const driver = await this.drivers.findOneBy({ id: driverId });
     if (!driver) {
       throw new NotFoundException(`Driver with ID ${driverId} not found`);
     }
 
-    // DTO'dan kelgan har bir maydonni tekshirib, driver obyektiga o'rnatamiz
-    // Bu DTO'dagi maydonlar ixtiyoriy bo'lgani uchun qulay
-    Object.assign(driver, dto);
+    // Manually map the fields from the DTO to the driver entity
+    const { documents } = dto;
+
+    if (documents.identityCard) {
+      driver.passport_url = documents.identityCard;
+    }
+    if (documents.drivingLicence) {
+      driver.driver_license_url = documents.drivingLicence;
+    }
+    if (documents.vehicleInformation) {
+      driver.vehicle_technical_passport_url = documents.vehicleInformation;
+    }
+    // Map other potential fields
+    if (documents.passengerLicence) {
+      driver.passenger_license_url = documents.passengerLicence;
+    }
+    if (documents.selfEmploymentCertificate) {
+      driver.self_employment_certificate_url =
+        documents.selfEmploymentCertificate;
+    }
 
     await this.drivers.save(driver);
 

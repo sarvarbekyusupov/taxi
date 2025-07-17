@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
 import { ApiProperty } from "@nestjs/swagger";
 import { Driver } from "../../driver/entities/driver.entity";
-import { CarType } from "../../tariff/entities/car.tariff.entity";
+import { CarType } from "../../car-type/entities/car-type.entity";
 
 @Entity("cars")
 export class Car {
@@ -38,14 +38,14 @@ export class Car {
   @Column({ nullable: true })
   color?: string;
 
-  @ApiProperty({ example: "sedan", required: false })
-  @Column({ nullable: true })
-  car_type?: string;
+  // @ApiProperty({ example: "sedan", required: false })
+  // @Column({ nullable: true })
+  // car_type?: string;
 
-  // @ApiProperty({ type: () => CarType, required: false })
-  // @ManyToOne(() => CarType, { nullable: true })
-  // @JoinColumn({ name: "car_type_id" })
-  // car_type?: CarType;
+  @ApiProperty({ type: () => CarType, required: false })
+  @ManyToOne(() => CarType, { nullable: true })
+  @JoinColumn({ name: "car_type_id" })
+  car_type?: CarType;
 
   @ApiProperty({ example: "https://example.com/doc1.pdf", required: false })
   @Column({ type: "text", nullable: true })

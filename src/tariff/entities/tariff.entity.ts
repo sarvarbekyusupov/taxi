@@ -9,7 +9,7 @@ import {
 } from "typeorm";
 import { ApiProperty } from "@nestjs/swagger";
 import { ServiceArea } from "../../service-areas/entities/service-area.entity";
-import { CarType } from "./car.tariff.entity";
+import { CarType } from "../../car-type/entities/car-type.entity";
 
 @Entity("tariffs")
 export class Tariff {
@@ -17,30 +17,25 @@ export class Tariff {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @ApiProperty({
+    example: "Economy",
+    description: "The unique name for the tariff.",
+  })
+  @Column({ unique: true }) // A name for a tariff should be a string.
+  name: string;
+
   @ApiProperty({ type: () => ServiceArea })
   @ManyToOne(() => ServiceArea, (area) => area.tariffs, {
-    onDelete: "CASCADE",
-    nullable: false,
+    onDelete: "CASCADE", // If a service area is deleted, its tariffs are deleted too.
+    nullable: false, // A tariff MUST belong to a service area.
   })
   @JoinColumn({ name: "service_area_id" })
   service_area: ServiceArea;
 
-  @ApiProperty({ example: "Economy" })
-  @Column()
-  car_type: string;
-
-  @ApiProperty()
-  @Column()
-  region_id: number;
-
-  @ApiProperty()
-  @Column()
-  district_id: number;
-
-  // @ApiProperty({ type: () => CarType })
-  // @ManyToOne(() => CarType, { nullable: false })
-  // @JoinColumn({ name: "car_type_id" })
-  // car_type: CarType;
+  @ApiProperty({ type: () => CarType })
+  @ManyToOne(() => CarType, { nullable: true })
+  @JoinColumn({ name: "car_type_id" })
+  car_type: CarType;
 
   @ApiProperty()
   @Column("decimal", { precision: 10, scale: 2 })

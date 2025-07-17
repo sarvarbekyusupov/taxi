@@ -31,14 +31,9 @@ export class CreateCarDto {
   @IsString()
   color?: string;
 
-  @ApiProperty({
-    example: "sedan",
-    description: "Type of the car",
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  car_type?: string;
+  @ApiProperty({ example: 2, description: "The ID of the car's type" })
+  @IsNumber()
+  car_type_id: number;
 
   @ApiProperty({
     example: "https://example.com/doc1.pdf",

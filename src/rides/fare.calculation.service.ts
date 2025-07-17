@@ -31,7 +31,7 @@ export class FareCalculationService {
   ) {}
 
   async calculateFare(
-    carType: string,
+    carTypeId: number,
     serviceAreaId: number,
     distanceKm: number,
     durationMin: number
@@ -41,20 +41,21 @@ export class FareCalculationService {
     try {
       const tariff = await this.tariffRepo.findOne({
         where: {
-          car_type: carType,
+          car_type: { id: carTypeId }, // <-- Correct way to query relation
           service_area: { id: serviceAreaId },
           is_active: true,
         },
-        relations: ["service_area"],
       });
+
+
 
       if (!tariff) {
         this.logger.warn(
-          `Tariff not found for ${carType} in service area ${serviceAreaId}`
+          `Tariff not found for car type ${carTypeId} in service area ${serviceAreaId}`
         );
-        fareCalculationCounter.inc({ status: "not_found" });
+        // fareCalculationCounter.inc({ status: "not_found" });
         throw new NotFoundException(
-          `No active tariff found for ${carType} in service area ${serviceAreaId}`
+          `No active tariff found for the specified car type and service area.`
         );
       }
 
@@ -83,7 +84,7 @@ export class FareCalculationService {
       return finalFare;
     } catch (err) {
       this.logger.error("Fare calculation failed", {
-        carType,
+        carTypeId,
         serviceAreaId,
         error: err.message,
       });

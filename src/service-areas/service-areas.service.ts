@@ -56,4 +56,89 @@ export class ServiceAreaService {
 
     await this.repo.remove(existing);
   }
+
+  // --- New Method ---
+  /**
+   * Finds the most specific active service area for a given set of coordinates.
+   * If a point is in multiple areas, it returns the one with the smallest radius.
+   * @param lat The latitude of the location.
+   * @param lng The longitude of the location.
+   * @returns The matching ServiceArea or null if none are found.
+   */
+  async findAreaByCoordinates(
+    lat: number,
+    lng: number
+  ): Promise<ServiceArea | null> {
+    const earthRadiusKm = 6371;
+
+    // First, let's see what service areas exist for debugging
+    const allAreas = await this.repo
+      .createQueryBuilder("area")
+      .where("area.is_active = :isActive", { isActive: true })
+      .getMany();
+
+    console.log("All active service areas:", allAreas);
+
+    // Calculate distance for each area manually to debug
+    for (const area of allAreas) {
+      // FIX: No need for parseFloat, properties are already numbers
+      const centerLat = area.center_lat;
+      const centerLng = area.center_lng;
+      const radiusKm = area.radius_km;
+
+      // Manual distance calculation using Haversine formula
+      const toRadians = (degrees: number) => degrees * (Math.PI / 180);
+
+      const dLat = toRadians(centerLat - lat);
+      const dLng = toRadians(centerLng - lng);
+
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRadians(lat)) *
+          Math.cos(toRadians(centerLat)) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distance = earthRadiusKm * c;
+
+      console.log(`Area: ${area.name}`);
+      console.log(`  Center: ${centerLat}, ${centerLng}`);
+      console.log(`  Radius: ${radiusKm} km`);
+      console.log(`  Search point: ${lat}, ${lng}`);
+      console.log(`  Calculated distance: ${distance.toFixed(2)} km`);
+      console.log(`  Within radius: ${distance <= radiusKm}`);
+      console.log("---");
+    }
+
+    // This formula calculates the great-circle distance between two points on a sphere.
+    // It's used directly in the SQL query for efficiency.
+    const distanceFormula = `(${earthRadiusKm} * ACOS(COS(RADIANS(:lat)) * COS(RADIANS(area.center_lat)) * COS(RADIANS(area.center_lng) - RADIANS(:lng)) + SIN(RADIANS(:lat)) * SIN(RADIANS(area.center_lat))))`;
+
+    // Use the Query Builder to construct the database query.
+    const queryBuilder = this.repo
+      .createQueryBuilder("area")
+      // Select all columns from the service area and add a calculated 'distance' column.
+      .addSelect(distanceFormula, "distance")
+      // Safely pass parameters to the query to prevent SQL injection.
+      .setParameters({ lat, lng, isActive: true })
+      // Filter for active service areas only.
+      .where("area.is_active = :isActive")
+      // Further filter to include only areas where the calculated distance
+      // is less than or equal to the area's defined radius.
+      .andWhere(`${distanceFormula} <= area.radius_km`)
+      // If the point is in multiple overlapping areas, get the smallest (most specific) one first.
+      .orderBy("area.radius_km", "ASC");
+
+    // Log the generated SQL for debugging
+    const [sql, parameters] = queryBuilder.getQueryAndParameters();
+    console.log("Generated SQL:", sql);
+    console.log("Parameters:", parameters);
+
+    const result = await queryBuilder.getOne();
+    console.log("Query result:", result);
+
+    return result;
+  }
+  // --- End of New Method ---
 }

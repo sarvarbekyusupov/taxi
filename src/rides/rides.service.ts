@@ -768,8 +768,13 @@ export class RidesService {
     if (idempotencyKey) {
       const cachedRideId = await safeGet(`idempotency:${idempotencyKey}`);
       if (cachedRideId) {
-        this.logger.info("Idempotency key already processed", { correlationId, idempotencyKey });
-        const ride = await this.rideRepository.findOne({ where: { id: +cachedRideId } });
+        this.logger.info("Idempotency key already processed", {
+          correlationId,
+          idempotencyKey,
+        });
+        const ride = await this.rideRepository.findOne({
+          where: { id: +cachedRideId },
+        });
         if (ride) return ride;
       }
     }
@@ -841,7 +846,7 @@ export class RidesService {
 
         // Calculate fare
         const estimatedFare = await this.fareCalculator.calculateFare(
-          dto.tariff_type,
+          dto.car_type_id,
           dto.service_area_id,
           dto.estimated_distance ?? 0,
           dto.estimated_duration_minutes ?? 0
@@ -933,7 +938,11 @@ export class RidesService {
         }
 
         if (idempotencyKey) {
-          await safeSet(`idempotency:${idempotencyKey}`, savedRide.id.toString(), 86400);
+          await safeSet(
+            `idempotency:${idempotencyKey}`,
+            savedRide.id.toString(),
+            86400
+          );
         }
 
         this.logger.info("Ride creation completed successfully", {
@@ -1699,7 +1708,7 @@ export class RidesService {
     pickupLng: number,
     destinationLat: number,
     destinationLng: number,
-    tariffType: TariffType,
+    carTypeId: number
   ): Promise<number> {
     // In a real application, you would calculate distance and duration
     // using a mapping service (e.g., Google Maps Distance Matrix API)
@@ -1708,10 +1717,10 @@ export class RidesService {
     const dummyDuration = 20; // minutes
 
     return this.fareCalculator.calculateFare(
-      tariffType,
+      carTypeId,
       1, // Assuming a default service area ID for estimation
       dummyDistance,
-      dummyDuration,
+      dummyDuration
     );
   }
 
@@ -1763,7 +1772,10 @@ export class RidesService {
         ride.status = RideStatus.PAID;
         await this.rideRepository.save(ride);
         this.logger.info("Payment successful", { correlationId, rideId });
-        return { status: "success", transactionId: paymentResult.transactionId };
+        return {
+          status: "success",
+          transactionId: paymentResult.transactionId,
+        };
       } else {
         ride.status = RideStatus.PAYMENT_FAILED;
         await this.rideRepository.save(ride);
@@ -1790,7 +1802,12 @@ export class RidesService {
     reason: string
   ): Promise<any> {
     const correlationId = randomUUID();
-    this.logger.info("Handling refund", { correlationId, rideId, amount, reason });
+    this.logger.info("Handling refund", {
+      correlationId,
+      rideId,
+      amount,
+      reason,
+    });
 
     const ride = await this.rideRepository.findOne({ where: { id: rideId } });
     if (!ride) {
@@ -1847,7 +1864,10 @@ export class RidesService {
     const correlationId = randomUUID();
     this.logger.info("Reassigning driver", { correlationId, rideId, reason });
 
-    const ride = await this.rideRepository.findOne({ where: { id: rideId }, relations: ["driver"] });
+    const ride = await this.rideRepository.findOne({
+      where: { id: rideId },
+      relations: ["driver"],
+    });
     if (!ride) {
       throw new ServiceError(
         ServiceErrorType.RESOURCE_NOT_FOUND,
@@ -1877,7 +1897,9 @@ export class RidesService {
       );
     }
 
-    const newDriver = await this.driverRepository.findOne({ where: { id: driverMatch.driverId } });
+    const newDriver = await this.driverRepository.findOne({
+      where: { id: driverMatch.driverId },
+    });
     if (!newDriver) {
       throw new ServiceError(
         ServiceErrorType.RESOURCE_NOT_FOUND,
@@ -1900,15 +1922,31 @@ export class RidesService {
     return updatedRide;
   }
 
-  async updateDriverLocation(driverId: number, lat: number, lng: number): Promise<void> {
+  async updateDriverLocation(
+    driverId: number,
+    lat: number,
+    lng: number
+  ): Promise<void> {
     const correlationId = randomUUID();
-    this.logger.info("Updating driver location", { correlationId, driverId, lat, lng });
+    this.logger.info("Updating driver location", {
+      correlationId,
+      driverId,
+      lat,
+      lng,
+    });
 
     await this.circuitBreaker.execute(async () => {
-      await redisClient.geoAdd("drivers:geo", { longitude: lng, latitude: lat, member: driverId.toString() });
+      await redisClient.geoAdd("drivers:geo", {
+        longitude: lng,
+        latitude: lat,
+        member: driverId.toString(),
+      });
     }, correlationId);
 
-    const ride = await this.rideRepository.findOne({ where: { driver: { id: driverId }, status: RideStatus.STARTED }, relations: ["client"] });
+    const ride = await this.rideRepository.findOne({
+      where: { driver: { id: driverId }, status: RideStatus.STARTED },
+      relations: ["client"],
+    });
     if (ride) {
       this.socketServer.emit(`driverLocationUpdated:${ride.client.id}`, {
         rideId: ride.id,
@@ -1920,7 +1958,10 @@ export class RidesService {
 
   async addSupportForScheduledRides(dto: any): Promise<Ride> {
     const correlationId = randomUUID();
-    this.logger.info("Adding support for scheduled rides", { correlationId, dto });
+    this.logger.info("Adding support for scheduled rides", {
+      correlationId,
+      dto,
+    });
 
     const ride: Ride = this.rideRepository.create({
       pickup_latitude: dto.pickup_latitude,
@@ -1948,7 +1989,9 @@ export class RidesService {
     this.logger.info("Getting system performance metrics", { correlationId });
 
     const onlineDrivers = await redisClient.zCard("drivers:geo");
-    const pendingRides = await this.rideRepository.count({ where: { status: RideStatus.PENDING } });
+    const pendingRides = await this.rideRepository.count({
+      where: { status: RideStatus.PENDING },
+    });
 
     const conversionFunnel = {
       drivers_found: 0, // This would require more detailed metrics
@@ -1968,6 +2011,9 @@ export class RidesService {
   }
 
   async findOne(id: number): Promise<Ride | null> {
-    return this.rideRepository.findOne({ where: { id }, relations: ["client", "driver"] });
+    return this.rideRepository.findOne({
+      where: { id },
+      relations: ["client", "driver"],
+    });
   }
 }

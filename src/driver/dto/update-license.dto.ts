@@ -1,66 +1,65 @@
-// update-documents.dto.ts
+// Create a new file or update your existing DTO file
 
-import { IsOptional, IsString, IsUrl } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
+import { Type } from "class-transformer";
+import { IsObject, IsOptional, IsString, IsUrl, ValidateNested } from "class-validator";
 
-export class UpdateDocumentsDto {
+// 1. DTO for the nested "documents" object
+class DocumentsPayloadDto {
   @ApiProperty({
-    example: "https://cdn.example.com/passport.jpg",
-    description: "Haydovchi pasportining rasmi uchun URL",
+    description: "URL for the identity card (passport)",
     required: false,
   })
   @IsOptional()
-  @IsString()
   @IsUrl()
-  passport_url?: string;
+  identityCard?: string;
 
-  @ApiProperty({
-    example: "https://cdn.example.com/tech_passport.jpg",
-    description: "Avtomobil tex-pasportining rasmi uchun URL",
-    required: false,
-  })
+  @ApiProperty({ description: "URL for the driving license", required: false })
   @IsOptional()
-  @IsString()
   @IsUrl()
-  vehicle_technical_passport_url?: string;
+  drivingLicence?: string;
 
   @ApiProperty({
-    example: "https://cdn.example.com/passenger_license.jpg",
-    description: "Odam tashish litsenziyasining rasmi uchun URL",
+    description: "URL for the vehicle technical passport",
     required: false,
   })
   @IsOptional()
-  @IsString()
   @IsUrl()
-  passenger_license_url?: string;
+  vehicleInformation?: string;
 
+  // You should ask the mobile dev for the keys for these other documents:
   @ApiProperty({
-    example: "https://cdn.example.com/self_employed.jpg",
-    description: "O'z-o'zini band qilish haqidagi hujjat rasmi uchun URL",
+    description: "URL for the passenger license",
     required: false,
   })
   @IsOptional()
-  @IsString()
   @IsUrl()
-  self_employment_certificate_url?: string;
+  passengerLicence?: string;
 
-  // Mavjud haydovchilik guvohnomasi maydonlari
   @ApiProperty({
-    example: "DL1234567890",
-    description: "Haydovchilik guvohnomasi raqami",
+    description: "URL for the self-employment certificate",
     required: false,
   })
   @IsOptional()
-  @IsString()
-  driver_license_number?: string;
-
-  @ApiProperty({
-    example: "https://cdn.example.com/license.jpg",
-    description: "Haydovchilik guvohnomasi rasmi uchun URL",
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
   @IsUrl()
-  driver_license_url?: string;
+  selfEmploymentCertificate?: string;
+}
+
+// 2. Main DTO for the entire request body
+export class UpdateDriverDocumentsApiDto {
+  @ApiProperty({
+    description:
+      "The driver's ID (Note: This is ignored by the server for security reasons)",
+    example: "5",
+    required: false, // Make it optional
+  })
+  @IsOptional()
+  @IsString()
+  driver_id?: string;
+
+  @ApiProperty({ type: DocumentsPayloadDto })
+  @IsObject()
+  @ValidateNested() // <-- Validates the inner object
+  @Type(() => DocumentsPayloadDto) // <-- Helps NestJS instantiate the inner class
+  documents: DocumentsPayloadDto;
 }

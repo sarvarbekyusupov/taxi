@@ -23,9 +23,19 @@ export class ServiceArea {
   @Column()
   city: string;
 
-  @ApiProperty({ example: "Uzbekistan" })
-  @Column()
-  country: string;
+
+  // Option 1: Circular area (simpler for MVP)
+  @ApiProperty({ example: 41.2995, description: "Center latitude" })
+  @Column({ type: "decimal", precision: 10, scale: 8, nullable: true })
+  center_lat: number;
+
+  @ApiProperty({ example: 69.2401, description: "Center longitude" })
+  @Column({ type: "decimal", precision: 11, scale: 8, nullable: true })
+  center_lng: number;
+
+  @ApiProperty({ example: 5.0, description: "Radius in kilometers" })
+  @Column({ type: "decimal", precision: 8, scale: 2, nullable: true })
+  radius_km: number;
 
   @ApiProperty({ example: true })
   @Column({ default: true })

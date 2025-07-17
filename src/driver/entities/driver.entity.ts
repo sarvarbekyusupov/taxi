@@ -40,6 +40,26 @@ export class Driver {
   @ApiProperty({ example: "https://example.com/license.jpg", required: false })
   driver_license_url?: string;
 
+  @Column({ name: "passport_url", type: "varchar", nullable: true })
+  passport_url?: string;
+
+  @Column({
+    name: "vehicle_technical_passport_url",
+    type: "varchar",
+    nullable: true,
+  })
+  vehicle_technical_passport_url?: string;
+
+  @Column({ name: "passenger_license_url", type: "varchar", nullable: true })
+  passenger_license_url?: string;
+
+  @Column({
+    name: "self_employment_certificate_url",
+    type: "varchar",
+    nullable: true,
+  })
+  self_employment_certificate_url?: string;
+
   @Column("decimal", { nullable: true })
   @ApiProperty({ example: 125.5, required: false })
   balance?: number;

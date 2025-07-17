@@ -557,33 +557,33 @@ export class RidesController {
     return this.ridesService.getSystemPerformanceMetrics();
   }
 
-  @Get("fares/estimate")
-  @ApiOperation({ summary: "Get estimated fare based on pickup and destination" })
-  @ApiQuery({ name: "pickupLat", type: Number, description: "Pickup latitude" })
-  @ApiQuery({ name: "pickupLng", type: Number, description: "Pickup longitude" })
-  @ApiQuery({ name: "destinationLat", type: Number, description: "Destination latitude" })
-  @ApiQuery({ name: "destinationLng", type: Number, description: "Destination longitude" })
-  @ApiQuery({ name: "tariffType", enum: TariffType, description: "Type of tariff for the ride" })
-  @ApiResponse({
-    status: 200,
-    description: "Returns the estimated fare",
-    schema: {
-      example: 25000,
-    },
-  })
-  async getEstimatedFare(
-    @Query("pickupLat") pickupLat: number,
-    @Query("pickupLng") pickupLng: number,
-    @Query("destinationLat") destinationLat: number,
-    @Query("destinationLng") destinationLng: number,
-    @Query("tariffType") tariffType: TariffType,
-  ) {
-    return this.ridesService.estimateFare(
-      pickupLat,
-      pickupLng,
-      destinationLat,
-      destinationLng,
-      tariffType,
-    );
-  }
+  // @Get("fares/estimate")
+  // @ApiOperation({ summary: "Get estimated fare based on pickup and destination" })
+  // @ApiQuery({ name: "pickupLat", type: Number, description: "Pickup latitude" })
+  // @ApiQuery({ name: "pickupLng", type: Number, description: "Pickup longitude" })
+  // @ApiQuery({ name: "destinationLat", type: Number, description: "Destination latitude" })
+  // @ApiQuery({ name: "destinationLng", type: Number, description: "Destination longitude" })
+  // @ApiQuery({ name: "tariffType", enum: TariffType, description: "Type of tariff for the ride" })
+  // @ApiResponse({
+  //   status: 200,
+  //   description: "Returns the estimated fare",
+  //   schema: {
+  //     example: 25000,
+  //   },
+  // })
+  // async getEstimatedFare(
+  //   @Query("pickupLat") pickupLat: number,
+  //   @Query("pickupLng") pickupLng: number,
+  //   @Query("destinationLat") destinationLat: number,
+  //   @Query("destinationLng") destinationLng: number,
+  //   @Query("tariffType") tariffType: TariffType,
+  // ) {
+  //   return this.ridesService.estimateFare(
+  //     pickupLat,
+  //     pickupLng,
+  //     destinationLat,
+  //     destinationLng,
+  //     carTypeId,
+  //   );
+  // }
 }

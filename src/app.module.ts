@@ -58,6 +58,10 @@ import { TelegramService } from "./telegram/telegram.service";
 import { TelegramModule } from "./telegram/telegram.module";
 // import { PaymeModule } from './payme/payme.module';
 import { FirebaseModule } from './firebase/firebase.module';
+import { CarTypeModule } from './car-type/car-type.module';
+import { CarType } from "./car-type/entities/car-type.entity";
+import { RideChat } from "./ride-chat/entities/ride-chat.entity";
+import { RideChatModule } from "./ride-chat/ride-chat.module";
 
 @Module({
   imports: [
@@ -102,6 +106,8 @@ import { FirebaseModule } from './firebase/firebase.module';
         Client,
         ChatMessage,
         Car,
+        CarType,
+        RideChat
       ],
       synchronize: true,
     }),
@@ -132,6 +138,8 @@ import { FirebaseModule } from './firebase/firebase.module';
     LocationModule,
     TelegramModule,
     FirebaseModule,
+    CarTypeModule,
+    RideChatModule,
     // PaymeModule,
   ],
   controllers: [],
