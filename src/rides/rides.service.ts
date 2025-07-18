@@ -84,11 +84,11 @@ class ServiceError extends Error {
 }
 
 const MAX_RADIUS_BY_TARIFF: Record<TariffType, number> = {
-  [TariffType.ECONOMY]: 2000,
-  [TariffType.COMFORT]: 3000,
-  [TariffType.BUSINESS]: 4000,
-  [TariffType.TIME_BASED]: 2500,
-  [TariffType.DELIVERY]: 3000,
+  [TariffType.ECONOMY]: 10000,
+  [TariffType.COMFORT]: 10000,
+  [TariffType.BUSINESS]: 10000,
+  [TariffType.TIME_BASED]: 10000,
+  [TariffType.DELIVERY]: 10000,
 };
 
 function getMaxSearchRadius(tariff: TariffType): number {

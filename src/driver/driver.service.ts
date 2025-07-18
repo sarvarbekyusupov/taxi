@@ -1021,4 +1021,69 @@ export class DriverService {
 
     return { message: "Driver documents updated successfully" };
   }
+
+  // ============== NEW METHODS ==============
+
+  /**
+   * Get all drivers with their complete information (Admin only)
+   * This method returns all database fields for each driver.
+   */
+  async findAllWithFullInfo(): Promise<Driver[]> {
+    try {
+      const drivers = await this.drivers.find({
+        // ✅ Load all related data for each driver
+        relations: [
+          "cars",
+          "rides",
+          "payment_cards",
+          "earnings",
+          "payouts",
+          "sessions",
+          "ratings",
+        ],
+      });
+      return drivers;
+    } catch (error) {
+      console.error("Failed to retrieve full driver info:", error);
+      throw new InternalServerErrorException(
+        "An error occurred while fetching full driver details."
+      );
+    }
+  }
+
+  /**
+   * Get a single driver with their complete information by ID (Admin only)
+   * This method returns all database fields for the specified driver.
+   */
+  async findOneWithFullInfo(id: number): Promise<Driver> {
+    try {
+      const driver = await this.drivers.findOne({
+        where: { id },
+        // ✅ Load all related data for the single driver
+        relations: [
+          "cars",
+          "rides",
+          "payment_cards",
+          "earnings",
+          "payouts",
+          "sessions",
+          "ratings",
+        ],
+      });
+
+      if (!driver) {
+        throw new NotFoundException(`Driver with ID ${id} not found`);
+      }
+
+      return driver;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      console.error(`Failed to retrieve full info for driver ${id}:`, error);
+      throw new InternalServerErrorException(
+        "An error occurred while fetching full driver details."
+      );
+    }
+  }
 }

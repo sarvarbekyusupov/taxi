@@ -48,6 +48,7 @@ import { UserCategoryGuard } from "../auth/user.guard";
 import { GetCurrentUser } from "../common/decorators/get-current-user.decorator";
 import { redisClient } from "../redis/redis.provider";
 import {  UpdateDriverDocumentsApiDto } from "./dto/update-license.dto";
+import { Driver } from "./entities/driver.entity";
 
 // ==================================
 // ======== SWAGGER DTOs ============
@@ -1070,5 +1071,92 @@ export class DriverController {
     @Body() dto: UpdateDriverDocumentsApiDto // <<< Yangi DTO'ni ishlatamiz
   ) {
     return this.driverService.updateDocumentsInfo(driverId, dto); // <<< Service funksiyasini chaqiramiz
+  }
+
+  // @Get()
+  // // @Roles("admin")
+  // // @UseGuards(RolesGuard)
+  // @ApiOperation({ summary: "Get all drivers (Admin)" })
+  // @ApiResponse({
+  //   status: 200,
+  //   description: "List of drivers with basic info.",
+  // })
+  // findAll() {
+  //   return this.driverService.findAll();
+  // }
+
+  // @Get(":id")
+  // @Roles("admin")
+  // @UseGuards(RolesGuard)
+  // @ApiOperation({ summary: "Get a single driver by ID (Admin)" })
+  // @ApiParam({ name: "id", description: "Driver ID" })
+  // @ApiResponse({ status: 200, description: "Driver found." })
+  // @ApiResponse({ status: 404, description: "Driver not found." })
+  // findOne(@Param("id", ParseIntPipe) id: number) {
+  //   return this.driverService.findOne(id);
+  // }
+
+  // ============== NEW CONTROLLER METHODS ==============
+
+  @Get("full-info/all")
+  // @Roles("admin")
+  // @UseGuards(RolesGuard)
+  @ApiOperation({
+    summary: "Get all drivers with complete information (Admin Only)",
+    description:
+      "Retrieves a complete list of all drivers, including all their database fields such as document URLs, tokens, and timestamps. This endpoint is intended for administrative purposes.",
+  })
+  // @ApiCookieAuth() // If your admin auth depends on a cookie
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved the full list of drivers.",
+    type: [Driver], // Assuming Driver is your entity class
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: "Unauthorized. Admin role required.",
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: "An internal server error occurred.",
+  })
+  findAllWithFullInfo() {
+    return this.driverService.findAllWithFullInfo();
+  }
+
+  @Get("full-info/:id")
+  // @Roles("admin")
+  // @UseGuards(RolesGuard)
+  @ApiOperation({
+    summary: "Get a single driver with complete information by ID (Admin Only)",
+    description:
+      "Retrieves all available information for a specific driver by their ID, including all database fields. This is for detailed administrative review.",
+  })
+  // @ApiCookieAuth()
+  @ApiParam({
+    name: "id",
+    type: "number",
+    description: "The unique identifier of the driver.",
+    example: 1,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Successfully retrieved the driver's full details.",
+    type: Driver, // Assuming Driver is your entity class
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: "Unauthorized. Admin role required.",
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: "Driver with the specified ID was not found.",
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: "An internal server error occurred.",
+  })
+  findOneWithFullInfo(@Param("id", ParseIntPipe) id: number) {
+    return this.driverService.findOneWithFullInfo(id);
   }
 }

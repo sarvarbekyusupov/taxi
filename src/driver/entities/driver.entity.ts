@@ -80,22 +80,6 @@ export class Driver {
   @ApiProperty({ example: true })
   is_available: boolean;
 
-  @Column("decimal", { nullable: true })
-  @ApiProperty({ example: 37.7749, required: false })
-  current_latitude?: number;
-
-  @Column("decimal", { nullable: true })
-  @ApiProperty({ example: -122.4194, required: false })
-  current_longitude?: number;
-
-  @Column({ type: "timestamp", nullable: true })
-  @ApiProperty({ example: "2024-06-01T12:00:00Z", required: false })
-  location_updated_at?: Date;
-
-  @Column({ nullable: true })
-  @ApiProperty({ example: "verified", required: false })
-  verification_status?: string;
-
   @Column({ default: true })
   @ApiProperty({ example: true })
   is_active: boolean;
@@ -106,18 +90,6 @@ export class Driver {
 
   @Column({ type: "text", nullable: true })
   refresh_token: string | null;
-
-  @Column({ default: false })
-  isOnline: boolean;
-
-  @IsOptional()
-  @Column({ type: "text", nullable: true })
-  @ApiProperty({
-    description: "Firebase Cloud Messaging (FCM) token for push notifications",
-    example: "e-Yy...1J4:APA91bH...o_Q",
-    required: false,
-  })
-  fcm_token?: string;
 
   @Column({ nullable: true })
   currentRideId: number; // null if not in a ride
@@ -141,6 +113,6 @@ export class Driver {
   @OneToMany(() => DriverSession, (session) => session.driver)
   sessions: DriverSession[];
 
-  @OneToMany(() => Rating, (rating) => rating.driver_id)
+  @OneToMany(() => Rating, (rating) => rating.driver)
   ratings: Rating[];
 }

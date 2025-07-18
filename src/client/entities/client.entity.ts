@@ -74,6 +74,9 @@ export class Client {
   @OneToMany(() => PromoCodeUsage, (usage) => usage.client)
   promo_code_usages: PromoCodeUsage[];
 
-  @OneToMany(() => Rating, (rating) => rating.client_id)
+  // @OneToMany(() => Rating, (rating) => rating.client_id)
+  // ratings: Rating[];
+
+  @OneToMany(() => Rating, (rating) => rating.client)
   ratings: Rating[];
 }
