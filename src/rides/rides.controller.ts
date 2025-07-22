@@ -34,7 +34,7 @@ import {
   ApiExcludeEndpoint,
   ApiHeader,
 } from "@nestjs/swagger";
-import { RideStatus, TariffType } from "./entities/ride.entity";
+import { RideStatus } from "./entities/ride.entity";
 import { Res } from "@nestjs/common";
 import { Response } from "express";
 import { register } from "prom-client";

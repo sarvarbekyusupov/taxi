@@ -5,12 +5,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Tariff } from './entities/tariff.entity';
 import { ServiceArea } from '../service-areas/entities/service-area.entity';
 import { AuthModule } from '../auth/auth.module';
-import { CarType } from '../car-type/entities/car-type.entity';
 import { ServiceAreasModule } from '../service-areas/service-areas.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Tariff, ServiceArea, CarType]),
+    TypeOrmModule.forFeature([Tariff, ServiceArea]),
     AuthModule,
     ServiceAreasModule,
   ],

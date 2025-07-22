@@ -5,7 +5,6 @@ import { Tariff } from "./entities/tariff.entity";
 import { CreateTariffDto } from "./dto/create-tariff.dto";
 import { UpdateTariffDto } from "./dto/update-tariff.dto";
 import { ServiceArea } from "../service-areas/entities/service-area.entity";
-import { CarType } from "../car-type/entities/car-type.entity";
 import { ServiceAreaService } from "../service-areas/service-areas.service";
 
 @Injectable()
@@ -16,17 +15,14 @@ export class TariffService {
     @InjectRepository(ServiceArea)
     private readonly serviceAreaRepository: Repository<ServiceArea>,
 
-    @InjectRepository(CarType) // <-- Add this
-    private readonly carTypeRepository: Repository<CarType>,
 
     private readonly serviceAreaService: ServiceAreaService
   ) {}
 
   async create(dto: CreateTariffDto): Promise<Tariff> {
     // 1. Fetch both related entities concurrently for efficiency
-    const [serviceArea, carType] = await Promise.all([
+    const [serviceArea,] = await Promise.all([
       this.serviceAreaRepository.findOneBy({ id: dto.service_area_id }),
-      this.carTypeRepository.findOneBy({ id: dto.car_type_id }), // Assuming CarType has an 'id'
     ]);
 
     // 2. Validate that both entities were found
@@ -35,11 +31,7 @@ export class TariffService {
         `Service area with ID ${dto.service_area_id} not found`
       );
     }
-    if (!carType) {
-      throw new NotFoundException(
-        `Car type with ID ${dto.car_type_id} not found`
-      );
-    }
+  
 
     // 3. Create a new tariff instance
     const tariff = this.tariffRepository.create({
@@ -47,7 +39,6 @@ export class TariffService {
       ...dto,
       // Explicitly assign the fetched relation objects. This is the key fix.
       service_area: serviceArea,
-      car_type: carType,
     });
 
     // 4. Save the new tariff with its relations correctly linked

@@ -32,7 +32,7 @@ export class Admin {
     required: false,
     description: "Hashed password of the admin (not exposed in responses)",
   })
-  @Column({ nullable: true, select: false })
+  @Column({ nullable: true })
   password_hash: string;
 
   @ApiProperty({

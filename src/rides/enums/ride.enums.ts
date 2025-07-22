@@ -24,4 +24,5 @@ export enum TariffType {
   COMFORT = "comfort",
   BUSINESS = "business",
   TIME_BASED = "time_based",
+  DELIVERY= 'delivery'
 }

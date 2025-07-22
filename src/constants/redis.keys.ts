@@ -18,3 +18,6 @@ export const RedisKeys = {
   driverTotalOffers: (driverId: number | string) =>
     `driver:${driverId}:total_offers`,
 };
+
+
+

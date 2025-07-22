@@ -1,7 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsNotEmpty, IsNumber, IsString, IsOptional, IsEnum } from "class-validator";
 import { PaymentMethod } from "../../payments/enums/enum";
-import { TariffType } from "../entities/ride.entity";
+import { TariffType } from "../enums/ride.enums";
 
 export class CreateRideDto {
   @ApiProperty({ example: 41.311081, description: "Pickup latitude" })
@@ -93,8 +93,5 @@ export class CreateRideDto {
   @IsNotEmpty()
   tariff_type: TariffType;
 
-  @ApiProperty({ example: 2, description: "ID of the car type for the ride" })
-  @IsNumber()
-  @IsNotEmpty()
-  car_type_id: number;
+  
 }

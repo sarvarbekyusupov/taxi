@@ -17,6 +17,7 @@ import { Payment } from "../../payments/entities/payment.entity";
 import { SupportTicket } from "../../support-tickets/entities/support-ticket.entity";
 import { ChatMessage } from "../../chat-messages/entities/chat-message.entity";
 import { PromoCodeUsage } from "../../promo-code-usage/entities/promo-code-usage.entity";
+import { TariffType } from "../enums/ride.enums";
 
 export enum RideType {
   STANDARD = "standard",
@@ -40,13 +41,6 @@ export enum PaymentMethod {
   WALLET = "wallet",
 }
 
-export enum TariffType {
-  ECONOMY = "economy",
-  COMFORT = "comfort",
-  BUSINESS = "business",
-  TIME_BASED = "time_based",
-  DELIVERY = "delivery", // ✅ Add this line
-}
 
 
 @Entity("rides")

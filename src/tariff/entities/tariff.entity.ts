@@ -6,10 +6,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   JoinColumn,
+  ManyToMany,
 } from "typeorm";
 import { ApiProperty } from "@nestjs/swagger";
 import { ServiceArea } from "../../service-areas/entities/service-area.entity";
-import { CarType } from "../../car-type/entities/car-type.entity";
+import { Car } from "../../car/entities/car.entity";
 
 @Entity("tariffs")
 export class Tariff {
@@ -31,11 +32,6 @@ export class Tariff {
   })
   @JoinColumn({ name: "service_area_id" })
   service_area: ServiceArea;
-
-  @ApiProperty({ type: () => CarType })
-  @ManyToOne(() => CarType, { nullable: true })
-  @JoinColumn({ name: "car_type_id" })
-  car_type: CarType;
 
   @ApiProperty()
   @Column("decimal", { precision: 10, scale: 2 })
@@ -68,4 +64,7 @@ export class Tariff {
   @ApiProperty()
   @UpdateDateColumn()
   updated_at: Date;
+
+  @ManyToMany(() => Car, (car) => car.eligible_tariffs)
+  eligible_cars: Car[];
 }

@@ -58,6 +58,9 @@ export class WsAuthGuard implements CanActivate {
         token,
         secretKey
       );
+      
+      console.log("Decoded JWT payload in WsAuthGuard:", payload);
+
 
       client.data.user = {
         userId: payload.sub,

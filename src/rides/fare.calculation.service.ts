@@ -3,6 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Tariff } from "../tariff/entities/tariff.entity";
 import { Histogram, Counter, register } from "prom-client";
+import { TariffType } from "./enums/ride.enums";
 
 // Prometheus metrikalar
 const fareCalculationDuration = new Histogram({
@@ -31,7 +32,7 @@ export class FareCalculationService {
   ) {}
 
   async calculateFare(
-    carTypeId: number,
+    tariffType: TariffType,
     serviceAreaId: number,
     distanceKm: number,
     durationMin: number
@@ -41,17 +42,15 @@ export class FareCalculationService {
     try {
       const tariff = await this.tariffRepo.findOne({
         where: {
-          car_type: { id: carTypeId }, // <-- Correct way to query relation
+          name: tariffType, // <-- Correct way to query relation
           service_area: { id: serviceAreaId },
           is_active: true,
         },
       });
 
-
-
       if (!tariff) {
         this.logger.warn(
-          `Tariff not found for car type ${carTypeId} in service area ${serviceAreaId}`
+          `Tariff not found for car type ${tariffType} in service area ${serviceAreaId}`
         );
         // fareCalculationCounter.inc({ status: "not_found" });
         throw new NotFoundException(
@@ -84,7 +83,7 @@ export class FareCalculationService {
       return finalFare;
     } catch (err) {
       this.logger.error("Fare calculation failed", {
-        carTypeId,
+        tariffType,
         serviceAreaId,
         error: err.message,
       });

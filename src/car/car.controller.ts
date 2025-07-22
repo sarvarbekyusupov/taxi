@@ -9,9 +9,13 @@ import {
   HttpStatus,
   ParseIntPipe,
   UseGuards,
+  HttpCode,
+  UsePipes,
+  ValidationPipe,
+  NotFoundException,
 } from "@nestjs/common";
 import { CarService } from "./car.service";
-import { CreateCarDto } from "./dto/create-car.dto";
+import { AssignTariffsDto, CreateCarDto } from "./dto/create-car.dto";
 import { UpdateCarDto } from "./dto/update-car.dto";
 import {
   ApiTags,
@@ -50,8 +54,8 @@ export class CarController {
   }
 
   @Get()
-  @UseGuards(RoleGuard)
-  @Roles("admin", "super_admin")
+  // @UseGuards(RoleGuard)
+  // @Roles("admin", "super_admin")
   @ApiOperation({ summary: "Retrieve all cars" })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -107,6 +111,43 @@ export class CarController {
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: "Car not found." })
   remove(@Param("id", ParseIntPipe) id: number) {
     return this.carService.remove(id);
+  }
+
+  @Post(":id/assign-tariffs")
+  // @UseGuards(RoleGuard)
+  // @Roles("admin", "super_admin")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Mashinaga ruxsat etilgan tariflarni biriktirish" })
+  @ApiParam({
+    name: "id",
+    type: "number",
+    description: "Mashinaning ID'si",
+    example: 102,
+  })
+  @ApiBody({ type: AssignTariffsDto })
+  @ApiResponse({
+    status: 200,
+    description: "Tariflar muvaffaqiyatli biriktirildi.",
+    type: Car,
+  })
+  @ApiResponse({ status: 404, description: "Mashina yoki tarif topilmadi." })
+  @ApiResponse({ status: 400, description: "Yuborilgan ma'lumotlar yaroqsiz." })
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
+  async assignTariffs(
+    @Param("id", ParseIntPipe) carId: number,
+    @Body() assignTariffsDto: AssignTariffsDto
+  ): Promise<Car> {
+    try {
+      return await this.carService.assignTariffsToCar(
+        carId,
+        assignTariffsDto.tariffIds
+      );
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new NotFoundException(error.message);
+      }
+      throw error;
+    }
   }
 }
 

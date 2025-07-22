@@ -1,15 +1,12 @@
 import { Module, Global } from "@nestjs/common";
 import { SOCKET_IO_SERVER } from "./socket.constants";
 import { getSocketInstance } from "./socket.provider";
-import { LocationGateway } from "../location/location.gateway";
-import { AuthModule } from "../auth/auth.module";
-import { DriverModule } from "../driver/driver.module";
+// Do NOT import gateways here
 
 @Global()
 @Module({
-  imports: [AuthModule, DriverModule],
+  imports: [], // Gateways don't need AuthModule/DriverModule here
   providers: [
-    LocationGateway,
     {
       provide: SOCKET_IO_SERVER,
       useFactory: getSocketInstance,

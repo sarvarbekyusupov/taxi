@@ -14,20 +14,12 @@ import { redisClient } from "../redis/redis.provider";
 import { Logger, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
 import { DriverService } from "../driver/driver.service";
 import { UpdateLocationDto } from "../driver/dto/update-location.dto";
-import { RoleGuard } from "../auth/role.guard";
 import { Roles } from "../common/decorators/role.decorator";
 import { WsRoleGuard } from "../auth/ws.role.guard";
 import { WsAuthGuard } from "../auth/ws-auth.guard";
 import { WsException } from "@nestjs/websockets";
 
-// Configuration constants
-const DRIVER_HEARTBEAT_INTERVAL = 10000; // 10 seconds
-const DRIVER_HEARTBEAT_TIMEOUT = 30000; // 30 seconds
-const LOCATION_UPDATE_RATE_LIMIT = 1000; // 1 second
-const MAX_SEARCH_RADIUS = 50; // 50 km max search radius
-const CLEANUP_INTERVAL = 60000; // 1 minute
-
-// Interfaces
+// --- Interfaces ---
 interface DriverLocation {
   driverId: string;
   lat: number;
@@ -44,6 +36,34 @@ interface ViewBounds {
   ne: { lat: number; lng: number };
   sw: { lat: number; lng: number };
 }
+
+interface OrderNotification {
+  orderId: string;
+  clientId: string;
+  pickupLocation: {
+    lat: number;
+    lng: number;
+    address: string;
+  };
+  dropoffLocation: {
+    lat: number;
+    lng: number;
+    address: string;
+  };
+  fare: number;
+  distance: number;
+  estimatedDuration: number;
+  timestamp: number;
+  expiresAt: number; // Buyurtma qachon tugaydi
+}
+
+interface OrderResponse {
+  orderId: string;
+  driverId: string;
+  response: "accept" | "decline";
+  timestamp: number;
+}
+
 
 type ValidRoles = "driver" | "client" | "admin" | "super_admin";
 
@@ -63,28 +83,23 @@ export class LocationGateway
 
   private readonly logger = new Logger(LocationGateway.name);
 
-  // Driver state management
-  private driverUpdateTimestamps = new Map<string, number>();
-  private driverHeartbeatTimers = new Map<string, NodeJS.Timeout>();
-  private locationUpdateLimiter = new Map<string, number>();
-
-  // Cleanup timer
-  private cleanupTimer: NodeJS.Timeout;
-
   constructor(
     private readonly jwtTokenService: JwtTokenService,
     private readonly driverService: DriverService
   ) {}
 
   afterInit(server: Server) {
-    this.logger.log("LocationGateway initialized");
-    this.startCleanupTimer();
+    this.logger.log("LocationGateway initialized (Manual Online/Offline Mode)");
   }
 
   // === CONNECTION MANAGEMENT ===
 
   async handleConnection(client: Socket) {
-    this.logger.log(`New connection attempt from client ${client.id}`);
+    // this.logger.log(`New connection attempt from client ${client.id}`);
+
+    this.logger.log(
+      `--- handleConnection: New client trying to connect: ${client.id}`
+    );
 
     try {
       const user = await this.authenticateClient(client);
@@ -101,9 +116,9 @@ export class LocationGateway
         role: user.role,
       });
 
-      // Start heartbeat for drivers
+      // Automatically set driver to "online" upon connection
       if (user.role === "driver") {
-        await this.initializeDriver(client, user.userId);
+        await this.initializeDriver(user.userId);
       }
     } catch (error) {
       this.logger.error(`Connection failed: ${error.message}`);
@@ -116,7 +131,7 @@ export class LocationGateway
     this.logger.log(`Client disconnecting: ${client.id}`);
 
     const user = client.data?.user as AuthenticatedUser;
-    if (user?.role === "driver") {
+    if (user?.role === "driver" && user.userId) {
       await this.cleanupDriver(user.userId);
     }
   }
@@ -199,12 +214,11 @@ export class LocationGateway
 
   // === DRIVER MANAGEMENT ===
 
-  private async initializeDriver(client: Socket, driverId: string) {
+  private async initializeDriver(driverId: string) {
     try {
-      // Set driver as online
+      // Set driver as online automatically on connection
       await this.setDriverStatus(driverId, "online");
-      this.startHeartbeat(client);
-      this.logger.log(`Driver ${driverId} initialized and online`);
+      this.logger.log(`Driver ${driverId} connected and is online.`);
     } catch (error) {
       this.logger.error(
         `Failed to initialize driver ${driverId}: ${error.message}`
@@ -214,67 +228,13 @@ export class LocationGateway
 
   private async cleanupDriver(driverId: string) {
     try {
-      this.stopHeartbeat(driverId);
+      // On disconnect, set driver to offline and remove location
       await this.setDriverStatus(driverId, "offline");
       await this.removeDriverLocation(driverId);
-      this.locationUpdateLimiter.delete(driverId);
-      this.logger.log(`Driver ${driverId} cleaned up`);
+      this.logger.log(`Driver ${driverId} disconnected and cleaned up.`);
     } catch (error) {
       this.logger.error(
         `Failed to cleanup driver ${driverId}: ${error.message}`
-      );
-    }
-  }
-
-  // === HEARTBEAT SYSTEM ===
-
-  private startHeartbeat(client: Socket) {
-    const driverId = client.data?.user?.userId;
-    if (!driverId) {
-      this.logger.warn("Cannot start heartbeat: No driver ID found");
-      return;
-    }
-
-    this.logger.debug(`Starting heartbeat for driver ${driverId}`);
-    this.driverUpdateTimestamps.set(driverId, Date.now());
-
-    const timer = setInterval(async () => {
-      const lastHeartbeat = this.driverUpdateTimestamps.get(driverId);
-      if (
-        !lastHeartbeat ||
-        Date.now() - lastHeartbeat > DRIVER_HEARTBEAT_TIMEOUT
-      ) {
-        this.logger.log(`Driver ${driverId} heartbeat timeout`);
-        await this.handleDriverTimeout(driverId);
-        this.stopHeartbeat(driverId);
-        client.disconnect(true);
-      }
-    }, DRIVER_HEARTBEAT_INTERVAL);
-
-    this.driverHeartbeatTimers.set(driverId, timer);
-  }
-
-  private stopHeartbeat(driverId: string) {
-    const timer = this.driverHeartbeatTimers.get(driverId);
-    if (timer) {
-      clearInterval(timer);
-      this.driverHeartbeatTimers.delete(driverId);
-      this.driverUpdateTimestamps.delete(driverId);
-      this.logger.debug(`Stopped heartbeat for driver ${driverId}`);
-    }
-  }
-
-  private async handleDriverTimeout(driverId: string) {
-    try {
-      await this.setDriverStatus(driverId, "offline");
-      this.server.emit("driver:status:update", {
-        driverId,
-        status: "offline",
-        reason: "timeout",
-      });
-    } catch (error) {
-      this.logger.error(
-        `Failed to handle driver timeout ${driverId}: ${error.message}`
       );
     }
   }
@@ -283,57 +243,53 @@ export class LocationGateway
 
   @UseGuards(WsAuthGuard, WsRoleGuard)
   @Roles("driver")
-  @SubscribeMessage("driver:heartbeat")
-  handleDriverHeartbeat(@ConnectedSocket() client: Socket) {
-    const user = client.data.user as AuthenticatedUser;
-    if (user?.role === "driver") {
-      this.driverUpdateTimestamps.set(user.userId, Date.now());
-      this.logger.debug(`Heartbeat received from driver ${user.userId}`);
-    }
-  }
-
-  @UseGuards(WsAuthGuard, WsRoleGuard)
-  @Roles("driver")
   @SubscribeMessage("location:update")
-  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
+  // @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
   async handleLocationUpdate(
-    @MessageBody() updateLocationDto: UpdateLocationDto,
+    @MessageBody() data: any,
     @ConnectedSocket() client: Socket
   ) {
+    let dtoObject: any;
+
+    // 1. Check if the data is a string and parse it
+    if (typeof data === "string") {
+      try {
+        dtoObject = JSON.parse(data);
+      } catch (error) {
+        throw new WsException("Invalid JSON format.");
+      }
+    } else {
+      dtoObject = data;
+    }
+
+    // 2. Handle the array case
+    const finalDto = Array.isArray(dtoObject) ? dtoObject[0] : dtoObject;
+
+    // 3. Manually validate the final object
+    const updateLocationDto = new UpdateLocationDto();
+    updateLocationDto.lat = finalDto.lat;
+    updateLocationDto.lng = finalDto.lng;
+    updateLocationDto.rideId = finalDto.rideId;
+    updateLocationDto.driverId = finalDto.driverId;
+
+    //  const errors = await this.validator.validate(updateLocationDto);
+    //  if (errors.length > 0) {
+    //    this.logger.warn("Validation failed for location update", errors);
+    //    throw new WsException("Invalid location data provided.");
+    //  }
+
+    this.logger.log(
+      `--- Received and processed "location:update" event with data:`,
+      updateLocationDto
+    );
+
     const user = client.data.user as AuthenticatedUser;
     const driverId = user.userId;
 
     try {
-      // Validate driver ID consistency
-      if (
-        updateLocationDto.driverId &&
-        updateLocationDto.driverId.toString() !== driverId
-      ) {
-        throw new WsException("Driver ID mismatch");
-      }
-
-      // Rate limiting
-      if (!this.checkRateLimit(driverId)) {
-        throw new WsException("Rate limit exceeded");
-      }
-
-      // Validate coordinates
-      this.validateCoordinates(updateLocationDto.lat, updateLocationDto.lng);
-
-      // Update location
       await this.updateDriverLocation(driverId, updateLocationDto);
-
-      // Update heartbeat
-      this.driverUpdateTimestamps.set(driverId, Date.now());
-
-      // Broadcast update
       await this.broadcastLocationUpdate(driverId, updateLocationDto);
-
-      return {
-        success: true,
-        message: "Location updated successfully",
-        timestamp: Date.now(),
-      };
+      return { success: true, message: "Location updated" };
     } catch (error) {
       this.logger.error(
         `Location update failed for driver ${driverId}: ${error.message}`
@@ -341,6 +297,31 @@ export class LocationGateway
       throw new WsException(error.message || "Location update failed");
     }
   }
+
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("driver")
+  @SubscribeMessage("driver:go-offline")
+  async handleDriverGoOffline(@ConnectedSocket() client: Socket) {
+    const user = client.data.user as AuthenticatedUser;
+    const driverId = user.userId;
+
+    try {
+      await this.setDriverStatus(driverId, "offline");
+      await this.removeDriverLocation(driverId);
+
+      const payload = { driverId, status: "offline", reason: "manual" };
+      client.emit("driver:status:update", payload); // Acknowledge to self
+      this.server.emit("driver:status:update", payload); // Broadcast to others
+
+      this.logger.log(`Driver ${driverId} manually went offline.`);
+      return { success: true, status: "offline" };
+    } catch (error) {
+      this.logger.error(`Failed to set driver offline: ${error.message}`);
+      throw new WsException("Failed to go offline");
+    }
+  }
+
+  // Other subscription handlers...
 
   @UseGuards(WsAuthGuard)
   @SubscribeMessage("driver:subscribe")
@@ -351,13 +332,11 @@ export class LocationGateway
     if (!data.driverId) {
       throw new WsException("Driver ID is required");
     }
-
     const room = `driver:${data.driverId}`;
     client.join(room);
     this.logger.log(
       `Client ${client.id} subscribed to driver ${data.driverId}`
     );
-
     return { success: true, room };
   }
 
@@ -370,11 +349,9 @@ export class LocationGateway
     if (!data.rideId) {
       throw new WsException("Ride ID is required");
     }
-
     const user = client.data.user as AuthenticatedUser;
     const room = `ride:${data.rideId}`;
     client.join(room);
-
     this.logger.log(
       `User ${user.userId} (${user.role}) subscribed to ride ${data.rideId}`
     );
@@ -391,7 +368,6 @@ export class LocationGateway
     try {
       this.validateBounds(bounds);
       const drivers = await this.getDriversInBounds(bounds);
-
       client.emit("drivers:in-view:response", {
         drivers,
         count: drivers.length,
@@ -403,70 +379,7 @@ export class LocationGateway
     }
   }
 
-  @UseGuards(WsAuthGuard, WsRoleGuard)
-  @Roles("admin", "super_admin")
-  @SubscribeMessage("drivers:all")
-  async handleAllDriversRequest(@ConnectedSocket() client: Socket) {
-    try {
-      const drivers = await this.getAllDriverLocations();
-
-      client.emit("drivers:all:response", {
-        drivers,
-        count: drivers.length,
-        timestamp: Date.now(),
-      });
-
-      this.logger.log(`Sent ${drivers.length} driver locations to admin`);
-    } catch (error) {
-      this.logger.error(`Failed to get all drivers: ${error.message}`);
-      throw new WsException("Failed to retrieve all drivers");
-    }
-  }
-
-  @UseGuards(WsAuthGuard, WsRoleGuard)
-  @Roles("driver")
-  @SubscribeMessage("driver:go-offline")
-  async handleDriverGoOffline(@ConnectedSocket() client: Socket) {
-    const user = client.data.user as AuthenticatedUser;
-    const driverId = user.userId;
-
-    try {
-      await this.setDriverStatus(driverId, "offline");
-      await this.removeDriverLocation(driverId);
-      this.stopHeartbeat(driverId);
-
-      client.emit("driver:status:update", {
-        status: "offline",
-        reason: "manual",
-      });
-
-      this.server.emit("driver:status:update", {
-        driverId,
-        status: "offline",
-        reason: "manual",
-      });
-
-      this.logger.log(`Driver ${driverId} manually went offline`);
-      return { success: true, status: "offline" };
-    } catch (error) {
-      this.logger.error(`Failed to set driver offline: ${error.message}`);
-      throw new WsException("Failed to go offline");
-    }
-  }
-
-  // === UTILITY METHODS ===
-
-  private checkRateLimit(driverId: string): boolean {
-    const now = Date.now();
-    const lastUpdate = this.locationUpdateLimiter.get(driverId);
-
-    if (lastUpdate && now - lastUpdate < LOCATION_UPDATE_RATE_LIMIT) {
-      return false;
-    }
-
-    this.locationUpdateLimiter.set(driverId, now);
-    return true;
-  }
+  // === UTILITY & REDIS METHODS ===
 
   private validateCoordinates(lat: number, lng: number) {
     if (lat < -90 || lat > 90) {
@@ -481,17 +394,157 @@ export class LocationGateway
     if (!bounds.ne || !bounds.sw) {
       throw new Error("Invalid bounds: missing ne or sw");
     }
+    this.validateCoordinates(bounds.ne.lat, bounds.ne.lng);
+    this.validateCoordinates(bounds.sw.lat, bounds.sw.lng);
+  }
 
-    if (bounds.ne.lat <= bounds.sw.lat || bounds.ne.lng <= bounds.sw.lng) {
-      throw new Error("Invalid bounds: ne must be greater than sw");
-    }
+  // private async updateDriverLocation(
+  //   driverId: string,
+  //   location: UpdateLocationDto
+  // ) {
+  //   try {
+  //     // Update Redis geospatial data
+  //     await redisClient.geoAdd("drivers:location", {
+  //       longitude: location.lng,
+  //       latitude: location.lat,
+  //       member: driverId,
+  //     });
 
-    const distance = this.calculateDistance(bounds.ne, bounds.sw);
-    if (distance > MAX_SEARCH_RADIUS) {
-      throw new Error(
-        `Search area too large: ${distance}km > ${MAX_SEARCH_RADIUS}km`
+  //     // Store detailed location data
+  //     await redisClient.set(
+  //       `driver:${driverId}:location`,
+  //       JSON.stringify({
+  //         lat: location.lat,
+  //         lng: location.lng,
+  //         timestamp: Date.now(),
+  //         rideId: location.rideId || null,
+  //       }),
+  //       { EX: 3600 } // 1 hour expiration
+  //     );
+  //   } catch (error) {
+  //     this.logger.error(`Failed to update driver location: ${error.message}`);
+  //     throw new Error("Location update failed in Redis");
+  //   }
+  // }
+
+  // In LocationGateway
+
+  private async updateDriverLocation(
+    driverId: string,
+    location: UpdateLocationDto
+  ) {
+    try {
+      console.log(
+        `[DEBUG] 1. Entering updateDriverLocation for driver: ${driverId}`
       );
+      console.log(`[DEBUG] Location data:`, {
+        lat: location.lat,
+        lng: location.lng,
+        driverId,
+      });
+
+      // Validate coordinates before Redis operation
+      this.validateCoordinates(location.lat, location.lng);
+
+      // Update Redis geospatial data - Fix: Use the correct parameter format
+      const geoAddResult = await redisClient.geoAdd("drivers:location", {
+        longitude: Number(location.lng),
+        latitude: Number(location.lat),
+        member: driverId.toString(),
+      });
+
+      console.log(
+        `[DEBUG] 2. Successfully executed geoAdd for driver: ${driverId}, result: ${geoAddResult}`
+      );
+
+      // Store detailed location data
+      const locationData = {
+        lat: location.lat,
+        lng: location.lng,
+        timestamp: Date.now(),
+        rideId: location.rideId || null,
+      };
+
+      await redisClient.set(
+        `driver:${driverId}:location`,
+        JSON.stringify(locationData),
+        { EX: 3600 } // 1 hour expiration
+      );
+
+      console.log(
+        `[DEBUG] 3. Successfully executed set for driver: ${driverId}`
+      );
+    } catch (error) {
+      this.logger.error(
+        `[DEBUG] FAILED to update driver location for driver ${driverId}: ${error.message}`
+      );
+      console.error(`[DEBUG] Full error:`, error);
+      throw new Error("Location update failed in Redis");
     }
+  }
+
+  private async broadcastLocationUpdate(
+    driverId: string,
+    location: UpdateLocationDto
+  ) {
+    const payload: DriverLocation = {
+      driverId,
+      lat: location.lat,
+      lng: location.lng,
+      timestamp: Date.now(),
+    };
+
+    // Broadcast to anyone subscribed to this driver's specific room
+    this.server
+      .to(`driver:${driverId}`)
+      .emit("driver:location:update", payload);
+
+    // If the driver is on a ride, broadcast to the ride room as well
+    if (location.rideId) {
+      this.server
+        .to(`ride:${location.rideId}`)
+        .emit("driver:location:update", payload);
+    }
+  }
+
+  private async getDriversInBounds(
+    bounds: ViewBounds
+  ): Promise<DriverLocation[]> {
+    try {
+      const driverIds = await redisClient.geoRadius(
+        "drivers:location",
+        {
+          longitude: (bounds.ne.lng + bounds.sw.lng) / 2,
+          latitude: (bounds.ne.lat + bounds.sw.lat) / 2,
+        },
+        this.calculateDistance(bounds.ne, bounds.sw),
+        "km"
+      );
+
+      return await this.getDriverLocationDetails(driverIds as string[]);
+    } catch (error) {
+      this.logger.error(`Failed to search drivers in bounds: ${error.message}`);
+      throw new Error("Failed to search drivers");
+    }
+  }
+
+  private async getDriverLocationDetails(
+    driverIds: string[]
+  ): Promise<DriverLocation[]> {
+    if (driverIds.length === 0) return [];
+
+    const results = await redisClient.mGet(
+      driverIds.map((id) => `driver:${id}:location`)
+    );
+
+    return results
+      .map((result, index) => {
+        if (result) {
+          return JSON.parse(result) as DriverLocation;
+        }
+        return null;
+      })
+      .filter((loc) => loc !== null);
   }
 
   private calculateDistance(
@@ -511,170 +564,15 @@ export class LocationGateway
     return R * c;
   }
 
-  // === REDIS OPERATIONS ===
-
-  private async updateDriverLocation(
-    driverId: string,
-    location: UpdateLocationDto
-  ) {
-    const pipeline = redisClient.multi();
-
-    try {
-      // Update database
-      await this.driverService.updateLocation(
-        parseInt(driverId),
-        location.lat,
-        location.lng
-      );
-
-      // Update Redis geospatial data
-      pipeline.geoAdd("drivers:location", {
-        longitude: location.lng,
-        latitude: location.lat,
-        member: driverId,
-      });
-
-      // Store detailed location data
-      pipeline.set(
-        `driver:${driverId}:location`,
-        JSON.stringify({
-          lat: location.lat,
-          lng: location.lng,
-          timestamp: Date.now(),
-          rideId: location.rideId || null,
-        }),
-        { EX: 3600 } // 1 hour expiration
-      );
-
-      // Update status
-      pipeline.set(`driver:${driverId}:status`, "online", { EX: 3600 });
-
-      await pipeline.exec();
-    } catch (error) {
-      this.logger.error(`Failed to update driver location: ${error.message}`);
-      throw new Error("Location update failed");
-    }
-  }
-
-  private async broadcastLocationUpdate(
-    driverId: string,
-    location: UpdateLocationDto
-  ) {
-    const payload = {
-      driverId,
-      lat: location.lat,
-      lng: location.lng,
-      timestamp: Date.now(),
-    };
-
-    // Broadcast to driver subscribers
-    this.server
-      .to(`driver:${driverId}`)
-      .emit("driver:location:update", payload);
-
-    // Broadcast to ride subscribers if rideId is present
-    if (location.rideId) {
-      this.server
-        .to(`ride:${location.rideId}`)
-        .emit("driver:location:update", payload);
-    }
-  }
-
-  private async getDriversInBounds(
-    bounds: ViewBounds
-  ): Promise<DriverLocation[]> {
-    const center = {
-      latitude: (bounds.ne.lat + bounds.sw.lat) / 2,
-      longitude: (bounds.ne.lng + bounds.sw.lng) / 2,
-    };
-
-    const radius = this.calculateDistance(bounds.ne, bounds.sw) / 2;
-
-    try {
-      // Use geoSearch without WITHCOORD to avoid type issues
-      const driverIds = await redisClient.geoSearch(
-        "drivers:location",
-        {
-          longitude: center.longitude,
-          latitude: center.latitude,
-        },
-        {
-          radius: radius,
-          unit: "km",
-        }
-      );
-
-      return await this.getDriverLocationDetails(driverIds as string[]);
-    } catch (error) {
-      this.logger.error(`Failed to search drivers in bounds: ${error.message}`);
-      throw new Error("Failed to search drivers");
-    }
-  }
-
-  private async getAllDriverLocations(): Promise<DriverLocation[]> {
-    try {
-      const driverIds = (await redisClient.zRange(
-        "drivers:location",
-        0,
-        -1
-      )) as string[];
-      return await this.getDriverLocationDetails(driverIds);
-    } catch (error) {
-      this.logger.error(`Failed to get all driver locations: ${error.message}`);
-      throw new Error("Failed to get all drivers");
-    }
-  }
-
-  private async getDriverLocationDetails(
-    driverIds: string[]
-  ): Promise<DriverLocation[]> {
-    if (driverIds.length === 0) return [];
-
-    const pipeline = redisClient.multi();
-    driverIds.forEach((driverId) => {
-      pipeline.get(`driver:${driverId}:location`);
-    });
-
-    const results = await pipeline.exec();
-    const drivers: DriverLocation[] = [];
-
-    if (results) {
-      results.forEach((result, index) => {
-        if (result && result[1]) {
-          try {
-            const locationData = JSON.parse(result[1] as string);
-            drivers.push({
-              driverId: driverIds[index],
-              lat: locationData.lat,
-              lng: locationData.lng,
-              timestamp: locationData.timestamp,
-            });
-          } catch (error) {
-            this.logger.warn(
-              `Invalid location data for driver ${driverIds[index]}`
-            );
-          }
-        }
-      });
-    }
-
-    return drivers;
-  }
-
   private async setDriverStatus(
     driverId: string,
     status: "online" | "offline"
   ) {
     try {
-      await redisClient.set(`driver:${driverId}:status`, status, { EX: 3600 });
-      await redisClient.set(
-        `driver:${driverId}:lastSeen`,
-        Date.now().toString(),
-        { EX: 86400 }
-      ); // 24 hours
+      await redisClient.set(`driver:${driverId}:status`, status, { EX: 86400 });
     } catch (error) {
       this.logger.error(`Failed to set driver status: ${error.message}`);
-      throw new Error("Failed to update driver status");
+      throw new Error("Failed to update driver status in Redis");
     }
   }
 
@@ -689,42 +587,337 @@ export class LocationGateway
     }
   }
 
-  // === CLEANUP ===
+  @SubscribeMessage("test:ping")
+  handleTestPing(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
+    this.logger.log("--- PING-PONG! Test event received! ---", data);
 
-  private startCleanupTimer() {
-    this.cleanupTimer = setInterval(async () => {
-      await this.cleanupStaleData();
-    }, CLEANUP_INTERVAL);
+    // Send a response directly back to the client that sent the message
+    client.emit("test:pong", {
+      message: "Hello from the server!",
+      userId: client.data.user.userId,
+    });
   }
 
-  private async cleanupStaleData() {
-    try {
-      const cutoffTime = Date.now() - DRIVER_HEARTBEAT_TIMEOUT;
+  // === BUYURTMA MANAGEMENT ===
 
-      // Clean up rate limiter
-      for (const [
+  /**
+   * Drayver buyurtmalarni tinglashni boshlaydi
+   */
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("driver")
+  @SubscribeMessage("driver:listen-orders")
+  async handleDriverListenOrders(@ConnectedSocket() client: Socket) {
+    const user = client.data.user as AuthenticatedUser;
+    const driverId = user.userId;
+
+    try {
+      // Drayver "orders" room'iga qo'shiladi
+      const orderRoom = `orders:available`;
+      client.join(orderRoom);
+
+      // Drayver-specific room ham yaratamiz
+      const driverOrderRoom = `driver:${driverId}:orders`;
+      client.join(driverOrderRoom);
+
+      this.logger.log(`Driver ${driverId} started listening for orders`);
+
+      return {
+        success: true,
+        message: "Now listening for orders",
+        rooms: [orderRoom, driverOrderRoom],
+      };
+    } catch (error) {
+      this.logger.error(`Failed to start listening orders: ${error.message}`);
+      throw new WsException("Failed to start listening for orders");
+    }
+  }
+
+  /**
+   * Drayver buyurtmalarni tinglashni to'xtatadi
+   */
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("driver")
+  @SubscribeMessage("driver:stop-listening-orders")
+  async handleDriverStopListeningOrders(@ConnectedSocket() client: Socket) {
+    const user = client.data.user as AuthenticatedUser;
+    const driverId = user.userId;
+
+    try {
+      // Room'lardan chiqib ketadi
+      client.leave(`orders:available`);
+      client.leave(`driver:${driverId}:orders`);
+
+      this.logger.log(`Driver ${driverId} stopped listening for orders`);
+
+      return {
+        success: true,
+        message: "Stopped listening for orders",
+      };
+    } catch (error) {
+      this.logger.error(`Failed to stop listening orders: ${error.message}`);
+      throw new WsException("Failed to stop listening for orders");
+    }
+  }
+
+  /**
+   * Drayver buyurtmani qabul qiladi yoki rad etadi
+   */
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("driver")
+  @SubscribeMessage("driver:respond-order")
+  async handleDriverRespondOrder(
+    @MessageBody() data: { orderId: string; response: "accept" | "decline" },
+    @ConnectedSocket() client: Socket
+  ) {
+    const user = client.data.user as AuthenticatedUser;
+    const driverId = user.userId;
+
+    if (!data.orderId || !data.response) {
+      throw new WsException("Order ID and response are required");
+    }
+
+    if (!["accept", "decline"].includes(data.response)) {
+      throw new WsException("Response must be 'accept' or 'decline'");
+    }
+
+    try {
+      const orderResponse: OrderResponse = {
+        orderId: data.orderId,
         driverId,
-        timestamp,
-      ] of this.locationUpdateLimiter.entries()) {
-        if (timestamp < cutoffTime) {
-          this.locationUpdateLimiter.delete(driverId);
+        response: data.response,
+        timestamp: Date.now(),
+      };
+
+      // Redis'da javobni saqlash
+      await redisClient.set(
+        `order:${data.orderId}:response:${driverId}`,
+        JSON.stringify(orderResponse),
+        { EX: 300 } // 5 daqiqa
+      );
+
+      // Admin/dispatcher'larga javob jo'natish
+      this.server
+        .to(`order:${data.orderId}`)
+        .emit("order:driver-response", orderResponse);
+
+      // Client'ga ham xabar berish (agar qabul qilgan bo'lsa)
+      if (data.response === "accept") {
+        this.server
+          .to(`order:${data.orderId}:client`)
+          .emit("order:driver-found", {
+            orderId: data.orderId,
+            driverId,
+            timestamp: Date.now(),
+          });
+      }
+
+      this.logger.log(
+        `Driver ${driverId} ${data.response}ed order ${data.orderId}`
+      );
+
+      return {
+        success: true,
+        message: `Order ${data.response}ed successfully`,
+        orderId: data.orderId,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to respond to order: ${error.message}`);
+      throw new WsException("Failed to respond to order");
+    }
+  }
+
+  /**
+   * Admin/Dispatcher tomonidan yangi buyurtma yuborish
+   */
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("admin", "super_admin")
+  @SubscribeMessage("admin:broadcast-order")
+  async handleBroadcastOrder(
+    @MessageBody()
+    orderData: Omit<OrderNotification, "timestamp" | "expiresAt">,
+    @ConnectedSocket() client: Socket
+  ) {
+    const user = client.data.user as AuthenticatedUser;
+
+    try {
+      const orderNotification: OrderNotification = {
+        ...orderData,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + 5 * 60 * 1000, // 5 daqiqa
+      };
+
+      // Redis'da buyurtmani saqlash
+      await redisClient.set(
+        `order:${orderData.orderId}:details`,
+        JSON.stringify(orderNotification),
+        { EX: 600 } // 10 daqiqa
+      );
+
+      // Barcha online drayverlarga yuborish
+      this.server.to("orders:available").emit("new:order", orderNotification);
+
+      // Admin'lar uchun alohida room
+      const adminRoom = `order:${orderData.orderId}`;
+      client.join(adminRoom);
+
+      this.logger.log(
+        `Admin ${user.userId} broadcasted order ${orderData.orderId} to all available drivers`
+      );
+
+      return {
+        success: true,
+        message: "Order broadcasted to available drivers",
+        orderId: orderData.orderId,
+        expiresAt: orderNotification.expiresAt,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to broadcast order: ${error.message}`);
+      throw new WsException("Failed to broadcast order");
+    }
+  }
+
+  /**
+   * Client buyurtma room'iga qo'shiladi
+   */
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("client")
+  @SubscribeMessage("client:subscribe-order")
+  async handleClientSubscribeOrder(
+    @MessageBody() data: { orderId: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    if (!data.orderId) {
+      throw new WsException("Order ID is required");
+    }
+
+    const user = client.data.user as AuthenticatedUser;
+    const clientOrderRoom = `order:${data.orderId}:client`;
+
+    client.join(clientOrderRoom);
+
+    this.logger.log(
+      `Client ${user.userId} subscribed to order ${data.orderId} updates`
+    );
+
+    return {
+      success: true,
+      room: clientOrderRoom,
+      orderId: data.orderId,
+    };
+  }
+
+  /**
+   * Buyurtma bekor qilish
+   */
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("client", "admin", "super_admin")
+  @SubscribeMessage("order:cancel")
+  async handleCancelOrder(
+    @MessageBody() data: { orderId: string; reason?: string },
+    @ConnectedSocket() client: Socket
+  ) {
+    const user = client.data.user as AuthenticatedUser;
+
+    if (!data.orderId) {
+      throw new WsException("Order ID is required");
+    }
+
+    try {
+      const cancelData = {
+        orderId: data.orderId,
+        cancelledBy: user.userId,
+        reason: data.reason || "No reason provided",
+        timestamp: Date.now(),
+      };
+
+      // Redis'da bekor qilish ma'lumotini saqlash
+      await redisClient.set(
+        `order:${data.orderId}:cancelled`,
+        JSON.stringify(cancelData),
+        { EX: 3600 } // 1 soat
+      );
+
+      // Barcha tegishli room'larga xabar berish
+      this.server
+        .to(`order:${data.orderId}`)
+        .emit("order:cancelled", cancelData);
+      this.server
+        .to(`order:${data.orderId}:client`)
+        .emit("order:cancelled", cancelData);
+      this.server.to("orders:available").emit("order:cancelled", cancelData);
+
+      this.logger.log(
+        `Order ${data.orderId} cancelled by ${user.userId} (${user.role})`
+      );
+
+      return {
+        success: true,
+        message: "Order cancelled successfully",
+        orderId: data.orderId,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to cancel order: ${error.message}`);
+      throw new WsException("Failed to cancel order");
+    }
+  }
+
+  // === UTILITY METHODS ===
+
+  /**
+   * Online drayverlar ro'yxatini olish
+   */
+  // private async getOnlineDrivers(): Promise<string[]> {
+  //   try {
+  //     const driverKeys = await redisClient.keys("driver:*:status");
+  //     const drivers = [];
+
+  //     for (const key of driverKeys) {
+  //       const status = await redisClient.get(key);
+  //       if (status === "online") {
+  //         const driverId = key.split(":")[1]; // "driver:123:status" -> "123"
+  //         drivers.push(driverId);
+  //       }
+  //     }
+
+  //     return drivers;
+  //   } catch (error) {
+  //     this.logger.error(`Failed to get online drivers: ${error.message}`);
+  //     return [];
+  //   }
+  // }
+  private async getOnlineDrivers(): Promise<string[]> {
+    try {
+      const driverKeys = await redisClient.keys("driver:*:status");
+      // ✅ Explicitly type the array as an array of strings
+      const drivers: string[] = [];
+
+      for (const key of driverKeys) {
+        const status = await redisClient.get(key);
+        if (status === "online") {
+          const driverId = key.split(":")[1];
+          drivers.push(driverId); // This is now valid
         }
       }
 
-      this.logger.debug("Cleanup completed");
+      return drivers;
     } catch (error) {
-      this.logger.error(`Cleanup failed: ${error.message}`);
+      this.logger.error(`Failed to get online drivers: ${error.message}`);
+      return [];
     }
   }
 
-  // === LIFECYCLE ===
-
-  onModuleDestroy() {
-    // Clean up all timers
-    this.driverHeartbeatTimers.forEach((timer) => clearInterval(timer));
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer);
+  /**
+   * Buyurtma ma'lumotlarini olish
+   */
+  private async getOrderDetails(
+    orderId: string
+  ): Promise<OrderNotification | null> {
+    try {
+      const orderData = await redisClient.get(`order:${orderId}:details`);
+      return orderData ? JSON.parse(orderData) : null;
+    } catch (error) {
+      this.logger.error(`Failed to get order details: ${error.message}`);
+      return null;
     }
-    this.logger.log("LocationGateway destroyed");
   }
 }

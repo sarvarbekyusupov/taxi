@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsString, IsOptional, IsNumber, IsBoolean } from "class-validator";
+import { IsString, IsOptional, IsNumber, IsBoolean, IsArray, IsNotEmpty } from "class-validator";
 
 export class CreateCarDto {
   @ApiProperty({ example: 101, description: "Driver ID" })
@@ -61,4 +61,17 @@ export class CreateCarDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+}
+
+export class AssignTariffsDto {
+  @ApiProperty({
+    description:
+      "Mashinaga biriktirilishi kerak bo'lgan tariflarning ID'lari massivi",
+    example: [1, 3], // "Economy" va "Delivery" tariflarining ID'lari
+    type: [Number],
+  })
+  @IsArray()
+  @IsNumber({}, { each: true }) // Massivdagi har bir element son bo'lishini tekshiradi
+  @IsNotEmpty()
+  tariffIds: number[];
 }

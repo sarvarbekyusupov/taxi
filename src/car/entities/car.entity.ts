@@ -1,7 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, ManyToMany, JoinTable } from "typeorm";
 import { ApiProperty } from "@nestjs/swagger";
 import { Driver } from "../../driver/entities/driver.entity";
-import { CarType } from "../../car-type/entities/car-type.entity";
+import { Tariff } from "../../tariff/entities/tariff.entity";
 
 @Entity("cars")
 export class Car {
@@ -38,15 +38,6 @@ export class Car {
   @Column({ nullable: true })
   color?: string;
 
-  // @ApiProperty({ example: "sedan", required: false })
-  // @Column({ nullable: true })
-  // car_type?: string;
-
-  @ApiProperty({ type: () => CarType, required: false })
-  @ManyToOne(() => CarType, { nullable: true })
-  @JoinColumn({ name: "car_type_id" })
-  car_type?: CarType;
-
   @ApiProperty({ example: "https://example.com/doc1.pdf", required: false })
   @Column({ type: "text", nullable: true })
   registration_document_url?: string;
@@ -58,4 +49,12 @@ export class Car {
   @ApiProperty({ example: true, required: false })
   @Column({ type: "boolean", default: true })
   is_active?: boolean;
+
+  @ManyToMany(() => Tariff, (tariff) => tariff.eligible_cars)
+  @JoinTable({
+    name: "car_tariffs", // Bog'lovchi jadval nomi
+    joinColumn: { name: "car_id", referencedColumnName: "id" },
+    inverseJoinColumn: { name: "tariff_id", referencedColumnName: "id" },
+  })
+  eligible_tariffs: Tariff[];
 }

@@ -9,10 +9,11 @@ import { AuthModule } from '../auth/auth.module';
 import { DriverModule } from '../driver/driver.module';
 import { FareCalculationService } from './fare.calculation.service';
 import { Tariff } from '../tariff/entities/tariff.entity';
+import { Car } from '../car/entities/car.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Ride, Client, Driver, Tariff]),
+    TypeOrmModule.forFeature([Ride, Client, Driver, Tariff,Car]),
     AuthModule,
     DriverModule,
   ],

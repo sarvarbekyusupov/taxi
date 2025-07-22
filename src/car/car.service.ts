@@ -5,7 +5,7 @@ import { Car } from "./entities/car.entity";
 import { CreateCarDto } from "./dto/create-car.dto";
 import { UpdateCarDto } from "./dto/update-car.dto";
 import { Driver } from "../driver/entities/driver.entity";
-import { CarType } from "../car-type/entities/car-type.entity";
+import { Tariff } from "../tariff/entities/tariff.entity";
 
 @Injectable()
 export class CarService {
@@ -16,8 +16,8 @@ export class CarService {
     @InjectRepository(Driver)
     private readonly driverRepository: Repository<Driver>,
 
-    @InjectRepository(CarType) // <-- Add this
-    private readonly carTypeRepository: Repository<CarType>
+    @InjectRepository(Tariff)
+    private readonly tariffRepository: Repository<Tariff>
   ) {}
 
   // async create(dto: CreateCarDto): Promise<Car> {
@@ -62,9 +62,8 @@ export class CarService {
     const { driver_id, car_type_id, ...carDetails } = dto;
 
     // 1. Fetch both related entities at the same time for better performance
-    const [driver, carType] = await Promise.all([
+    const [driver] = await Promise.all([
       this.driverRepository.findOneBy({ id: driver_id }),
-      this.carTypeRepository.findOneBy({ id: car_type_id }),
     ]);
 
     // 2. Validate that both entities were found
@@ -72,15 +71,11 @@ export class CarService {
       // NotFoundException is more specific here than BadRequestException
       throw new NotFoundException(`Driver with ID ${driver_id} not found`);
     }
-    if (!carType) {
-      throw new NotFoundException(`CarType with ID ${car_type_id} not found`);
-    }
 
     // 3. Create the car instance
     const car = this.cars.create({
       ...carDetails, // Spread the rest of the properties (brand, model, etc.)
       driver: driver, // Assign the full Driver object
-      car_type: carType, // Assign the full CarType object
     });
 
     // 4. Save the new car with its relations correctly linked
@@ -118,5 +113,38 @@ export class CarService {
     }
     await this.cars.delete({ id });
     return { message: "Car deleted successfully" };
+  }
+
+  /**
+   * Aniq bir mashinaga ruxsat etilgan tariflarni biriktiradi.
+   * @param carId - Mashinaning ID'si
+   * @param tariffIds - Biriktirilishi kerak bo'lgan tariflarning ID'lari massivi
+   * @returns Yangilangan mashina obyekti
+   */
+  async assignTariffsToCar(carId: number, tariffIds: number[]): Promise<Car> {
+    // 1. Mashinani topamiz (mavjudligini tekshirish uchun)
+    const car = await this.cars.findOne({ where: { id: carId } });
+    if (!car) {
+      throw new NotFoundException(`Car with ID ${carId} not found`);
+    }
+
+    // 2. Biriktirilishi kerak bo'lgan tarif obyektlarini topamiz
+    const tariffs = await this.tariffRepository
+      .createQueryBuilder()
+      .where("id IN (:...ids)", { ids: tariffIds })
+      .getMany();
+
+    if (tariffs.length !== tariffIds.length) {
+      // Bu ba'zi ID'lar bo'yicha tarif topilmaganini bildiradi
+      throw new NotFoundException(`One or more tariffs not found.`);
+    }
+
+    // 3. TypeORM'ning munosabat (relation) xususiyatidan foydalanib,
+    // mashinaga tariflarni bog'laymiz. TypeORM qolgan ishni o'zi bajaradi.
+    car.eligible_tariffs = tariffs;
+
+    // 4. O'zgarishlarni ma'lumotlar bazasiga saqlaymiz.
+    // TypeORM avtomatik ravishda 'car_tariffs' jadvalini yangilaydi.
+    return this.cars.save(car);
   }
 }
