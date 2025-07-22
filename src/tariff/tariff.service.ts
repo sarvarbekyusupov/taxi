@@ -15,13 +15,12 @@ export class TariffService {
     @InjectRepository(ServiceArea)
     private readonly serviceAreaRepository: Repository<ServiceArea>,
 
-
     private readonly serviceAreaService: ServiceAreaService
   ) {}
 
   async create(dto: CreateTariffDto): Promise<Tariff> {
     // 1. Fetch both related entities concurrently for efficiency
-    const [serviceArea,] = await Promise.all([
+    const [serviceArea] = await Promise.all([
       this.serviceAreaRepository.findOneBy({ id: dto.service_area_id }),
     ]);
 
@@ -31,7 +30,6 @@ export class TariffService {
         `Service area with ID ${dto.service_area_id} not found`
       );
     }
-  
 
     // 3. Create a new tariff instance
     const tariff = this.tariffRepository.create({
@@ -76,36 +74,52 @@ export class TariffService {
    * @returns A list of matching tariffs.
    */
   async findTariffsByLocation(lat: number, lng: number): Promise<Tariff[]> {
-    // 1. Find the service area using the dedicated service
-    const serviceArea = await this.serviceAreaService.findAreaByCoordinates(
-      lat,
-      lng
-    );
+    try {
+      console.log(`Finding tariffs for coordinates: ${lat}, ${lng}`);
 
-    if (!serviceArea) {
-      throw new NotFoundException(
-        "No active service area found for the provided coordinates."
+      // 1. Find the service area using the dedicated service
+      const serviceArea = await this.serviceAreaService.findAreaByCoordinates(
+        lat,
+        lng
       );
-    }
 
-    // 2. Find all active tariffs for that service area using the Query Builder for reliability.
-    // This explicitly joins the tables and filters on the joined table's alias.
-    const tariffs = await this.tariffRepository
-      .createQueryBuilder("tariff")
-      .leftJoinAndSelect("tariff.service_area", "service_area")
-      .leftJoinAndSelect("tariff.car_type", "car_type")
-      .where("service_area.id = :serviceAreaId", {
-        serviceAreaId: serviceArea.id,
-      })
-      .andWhere("tariff.is_active = :isActive", { isActive: true })
-      .getMany();
+      if (!serviceArea) {
+        throw new NotFoundException(
+          "No active service area found for the provided coordinates."
+        );
+      }
 
-    if (!tariffs || tariffs.length === 0) {
-      throw new NotFoundException(
-        `No active tariffs found for service area '${serviceArea.name}'.`
+      console.log(
+        `Found service area: ${serviceArea.name} (ID: ${serviceArea.id})`
       );
-    }
 
-    return tariffs;
+      // 2. Find all active tariffs for that service area
+      // Remove the car_type join if it's causing issues
+      const tariffs = await this.tariffRepository
+        .createQueryBuilder("tariff")
+        .leftJoinAndSelect("tariff.service_area", "service_area")
+        // Only include car_type join if the relation exists in your Tariff entity
+        // .leftJoinAndSelect("tariff.car_type", "car_type")
+        .where("service_area.id = :serviceAreaId", {
+          serviceAreaId: serviceArea.id,
+        })
+        .andWhere("tariff.is_active = :isActive", { isActive: true })
+        .getMany();
+
+      console.log(
+        `Found ${tariffs.length} active tariffs for service area '${serviceArea.name}'`
+      );
+
+      if (!tariffs || tariffs.length === 0) {
+        throw new NotFoundException(
+          `No active tariffs found for service area '${serviceArea.name}'.`
+        );
+      }
+
+      return tariffs;
+    } catch (error) {
+      console.error("Error in findTariffsByLocation:", error);
+      throw error;
+    }
   }
 }
