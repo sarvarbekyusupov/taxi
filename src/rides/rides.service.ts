@@ -5,6 +5,7 @@ import {
   NotFoundException,
   InternalServerErrorException,
   Logger,
+  forwardRef,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import {
@@ -13,6 +14,7 @@ import {
   QueryRunner,
   MoreThanOrEqual,
   ILike,
+  
 } from "typeorm";
 import { Server } from "socket.io";
 import { validate } from "class-validator";
@@ -45,6 +47,7 @@ import {
 import { TariffType } from "./enums/ride.enums";
 import { Car } from "../car/entities/car.entity";
 import { Tariff } from "../tariff/entities/tariff.entity";
+import { LocationGateway } from "../location/location.gateway";
 
 
 
@@ -225,6 +228,8 @@ export class RidesService {
     private readonly fareCalculator: FareCalculationService,
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService
+    // @Inject(forwardRef(() => LocationGateway))
+    // private readonly locationGateway: LocationGateway
   ) {
     // Load and validate configuration
     this.config = this.loadConfiguration();
@@ -849,7 +854,7 @@ export class RidesService {
   private async getNearestAvailableDriver(
     pickupLat: number,
     pickupLng: number,
-    tariffType: TariffType, // Parametr nomi aniqlashtirildi
+    tariffType: TariffType,
     correlationId: string
   ): Promise<{ driverId: number; lockKey: string } | null> {
     const timer = driverMatchingDuration.startTimer();
@@ -860,84 +865,169 @@ export class RidesService {
     });
 
     try {
-       
-       // Debug first
-    await this.debugDriverEligibility(tariffType, correlationId);
-    
-    // Ensure we have basic data
-    await this.ensureBasicData(correlationId);
+      // Debug first
+      await this.debugDriverEligibility(tariffType, correlationId);
 
-    // Koordinatalarni tekshirish
-    if (!this.isValidCoordinate(pickupLat, pickupLng)) {
-      throw new ServiceError(
-        ServiceErrorType.VALIDATION_ERROR,
-        "Invalid coordinates for driver search",
-        correlationId
-      );
-    }
+      // Ensure we have basic data
+      await this.ensureBasicData(correlationId);
 
-    // QADAM 1: Use QueryBuilder for better control
-    const eligibleCars = await this.carRepository
-      .createQueryBuilder("car")
-      .innerJoinAndSelect("car.eligible_tariffs", "tariff")
-      .innerJoinAndSelect("car.driver", "driver")
-      .where("LOWER(tariff.name) = LOWER(:tariffName)", {
-        tariffName: tariffType,
-      })
-      .andWhere("car.is_active = :carActive", { carActive: true })
-      .andWhere("driver.is_active = :driverActive", { driverActive: true })
-      .getMany();
-
-    const eligibleDriverIds = eligibleCars
-      .map((car) => car.driver?.id)
-      .filter((id): id is number => id != null);
-
-    console.log(
-      `[DEBUG] STEP 1 (QueryBuilder): Drivers eligible for tariff '${tariffType}'`,
-      eligibleDriverIds
-    );
-
-    if (eligibleDriverIds.length === 0) {
-      // Try alternative approach with raw SQL as fallback
-      const rawResults = await this.dataSource.query(
-        `
-  SELECT DISTINCT c.driver_id
-  FROM cars c
-  INNER JOIN car_tariffs ct ON ct.car_id = c.id
-  INNER JOIN tariffs t ON t.id = ct.tariff_id
-  INNER JOIN drivers d ON d.id = c.driver_id
-  WHERE LOWER(t.name) = LOWER($1) AND c.is_active = true AND d.is_active = true
-`,
-        [tariffType]
-      );
-
-      const rawDriverIds = rawResults.map(r => r.driver_id);
-      
-      console.log(
-        `[DEBUG] STEP 1 (Raw SQL Fallback): Drivers eligible for tariff '${tariffType}'`,
-        rawDriverIds
-      );
-
-      if (rawDriverIds.length === 0) {
-        this.logger.warn(`No drivers are eligible for tariff: ${tariffType}`, {
-          correlationId,
-        });
-        return null;
+      // Koordinatalarni tekshirish
+      if (!this.isValidCoordinate(pickupLat, pickupLng)) {
+        throw new ServiceError(
+          ServiceErrorType.VALIDATION_ERROR,
+          "Invalid coordinates for driver search",
+          correlationId
+        );
       }
-    }
+
+      // QADAM 1: Use QueryBuilder for better control
+      const eligibleCars = await this.carRepository
+        .createQueryBuilder("car")
+        .innerJoinAndSelect("car.eligible_tariffs", "tariff")
+        .innerJoinAndSelect("car.driver", "driver")
+        .where("LOWER(tariff.name) = LOWER(:tariffName)", {
+          tariffName: tariffType,
+        })
+        .andWhere("car.is_active = :carActive", { carActive: true })
+        .andWhere("driver.is_active = :driverActive", { driverActive: true })
+        .getMany();
+
+      const eligibleDriverIds = eligibleCars
+        .map((car) => car.driver?.id)
+        .filter((id): id is number => id != null);
+
+      console.log(
+        `[DEBUG] STEP 1 (QueryBuilder): Drivers eligible for tariff '${tariffType}'`,
+        eligibleDriverIds
+      );
+
+      if (eligibleDriverIds.length === 0) {
+        // Try alternative approach with raw SQL as fallback
+        const rawResults = await this.dataSource.query(
+          `
+        SELECT DISTINCT c.driver_id
+        FROM cars c
+        INNER JOIN car_tariffs ct ON ct.car_id = c.id
+        INNER JOIN tariffs t ON t.id = ct.tariff_id
+        INNER JOIN drivers d ON d.id = c.driver_id
+        WHERE LOWER(t.name) = LOWER($1) AND c.is_active = true AND d.is_active = true
+        `,
+          [tariffType]
+        );
+
+        const rawDriverIds = rawResults.map((r) => r.driver_id);
+
+        console.log(
+          `[DEBUG] STEP 1 (Raw SQL Fallback): Drivers eligible for tariff '${tariffType}'`,
+          rawDriverIds
+        );
+
+        if (rawDriverIds.length === 0) {
+          this.logger.warn(
+            `No drivers are eligible for tariff: ${tariffType}`,
+            {
+              correlationId,
+            }
+          );
+          return null;
+        }
+      }
 
       this.logger.info(
         `Found ${eligibleDriverIds.length} drivers eligible for tariff "${tariffType}"`,
         { correlationId, driverIds: eligibleDriverIds }
       );
 
-      // QADAM 2: YAQLIN ATROFDAGI HAYDOVCHILARNI REDIS'DAN TOPISH
+      // QADAM 2: REDIS GEOSPATIAL DEBUG AND SEARCH
       const maxRadius = getMaxSearchRadius(tariffType);
+      const searchKey = "drivers:geo";
+
+      // === REDIS GEOSPATIAL DEBUG SECTION ===
+      this.logger.info("=== REDIS GEOSPATIAL DEBUG ===", {
+        correlationId,
+        searchKey,
+        coordinates: { lat: pickupLat, lng: pickupLng },
+        maxRadius,
+      });
+
+      try {
+        // Check what's actually in Redis geo set
+        const allDriversInGeo = (await redisClient.sendCommand([
+          "ZRANGE",
+          searchKey,
+          "0",
+          "-1",
+          "WITHSCORES",
+        ])) as string[];
+        this.logger.info("All drivers in geo set:", {
+          correlationId,
+          driversInGeo: allDriversInGeo,
+          count: Array.isArray(allDriversInGeo) ? allDriversInGeo.length : 0,
+        });
+
+        // Check specific driver positions for eligible drivers
+        for (const driverId of eligibleDriverIds) {
+          const driverPosition = (await redisClient.sendCommand([
+            "GEOPOS",
+            searchKey,
+            driverId.toString(),
+          ])) as string[][];
+          this.logger.info(`Driver ${driverId} position in Redis:`, {
+            correlationId,
+            driverId,
+            position: driverPosition,
+          });
+        }
+
+        // Test the exact GEORADIUS query with distance info
+        const geoRadiusTest = (await redisClient.sendCommand([
+          "GEORADIUS",
+          searchKey,
+          pickupLng.toString(),
+          pickupLat.toString(),
+          maxRadius.toString(),
+          "m",
+          "WITHDIST",
+          "WITHCOORD",
+        ])) as string[][];
+        this.logger.info("GEORADIUS test result (with distance and coords):", {
+          correlationId,
+          result: geoRadiusTest,
+          resultCount: Array.isArray(geoRadiusTest) ? geoRadiusTest.length : 0,
+          queryUsed: `GEORADIUS ${searchKey} ${pickupLng} ${pickupLat} ${maxRadius} m WITHDIST WITHCOORD`,
+        });
+
+        // Also test with a very large radius to see if any drivers exist
+        const largeRadiusTest = (await redisClient.sendCommand([
+          "GEORADIUS",
+          searchKey,
+          pickupLng.toString(),
+          pickupLat.toString(),
+          "100000", // 100km
+          "m",
+          "WITHDIST",
+        ])) as string[][];
+        this.logger.info("Large radius test (100km):", {
+          correlationId,
+          result: largeRadiusTest,
+          resultCount: Array.isArray(largeRadiusTest)
+            ? largeRadiusTest.length
+            : 0,
+        });
+      } catch (debugError) {
+        this.logger.error("Redis debug commands failed:", {
+          correlationId,
+          error: debugError.message,
+          searchKey,
+        });
+      }
+
+      // === ACTUAL SEARCH ===
       const nearbyDriverIdsStr = await this.retryOperation(async () => {
         return await this.circuitBreaker.execute(async () => {
-          return (await redisClient.sendCommand([
+          const result = (await redisClient.sendCommand([
             "GEORADIUS",
-            "drivers:geo",
+            searchKey,
             pickupLng.toString(),
             pickupLat.toString(),
             maxRadius.toString(),
@@ -946,16 +1036,30 @@ export class RidesService {
             this.config.maxCandidateDrivers.toString(),
             "ASC",
           ])) as string[];
+
+          this.logger.info("GEORADIUS search completed:", {
+            correlationId,
+            searchKey,
+            maxRadius,
+            resultCount: result?.length || 0,
+            result,
+          });
+
+          return result;
         }, correlationId);
       });
 
       if (!nearbyDriverIdsStr?.length) {
-        this.logger.info("No drivers found in the specified radius", {
+        this.logger.warn("No drivers found in Redis geospatial search", {
           correlationId,
           maxRadius,
+          searchKey,
+          coordinates: { lat: pickupLat, lng: pickupLng },
+          eligibleDriverIds,
         });
         return null;
       }
+
       const nearbyDriverIds = nearbyDriverIdsStr.map((id) => Number(id));
 
       console.log(
@@ -963,59 +1067,246 @@ export class RidesService {
         nearbyDriverIds
       );
 
-      // QADAM 3: IKKI RO'YXATNI KESISHTIRISH (INTERSECTION)
-      // Faqat ham yaqin, ham shu tarifda ishlay oladigan nomzodlar qoladi
+      // QADAM 3: INTERSECTION - Only keep candidates that are both nearby and eligible
       const finalCandidateIds = nearbyDriverIds.filter((id) =>
         eligibleDriverIds.includes(id)
       );
 
+      this.logger.info("Driver filtering results:", {
+        correlationId,
+        eligibleDriverIds,
+        nearbyDriverIds,
+        finalCandidateIds,
+        intersectionCount: finalCandidateIds.length,
+      });
+
       if (finalCandidateIds.length === 0) {
-        this.logger.info(
-          "No eligible drivers found within the geographical radius.",
-          { correlationId, tariff: tariffType }
+        this.logger.warn(
+          "No eligible drivers found within the geographical radius after intersection",
+          {
+            correlationId,
+            tariff: tariffType,
+            eligibleCount: eligibleDriverIds.length,
+            nearbyCount: nearbyDriverIds.length,
+          }
         );
         return null;
       }
+
       this.logger.info(
         `Found ${finalCandidateIds.length} final candidates after filtering`,
         { correlationId, candidates: finalCandidateIds }
       );
 
-      // QADAM 4: NOMZODLARNING STATUSINI TEKSHIRISH VA REYTING HISOSBLASH
+      // QADAM 4: STATUS CHECK AND SCORING WITH COMPREHENSIVE DEBUG
       const candidatesWithScore: { id: number; score: number }[] = [];
       const pipeline = redisClient.multi();
+
+      // Build pipeline commands
       for (const driverId of finalCandidateIds) {
         pipeline.get(RedisKeys.driverStatus(driverId));
         pipeline.get(RedisKeys.driverRide(driverId));
         pipeline.get(RedisKeys.driverAcceptedOffers(driverId));
         pipeline.get(RedisKeys.driverTotalOffers(driverId));
       }
+
       const redisResults = await this.circuitBreaker.execute(
         async () => await pipeline.exec(),
         correlationId
       );
 
-      // Redis natijalarini qayta ishlash
+      // === COMPREHENSIVE REDIS PIPELINE DEBUG ===
+      this.logger.info("=== REDIS PIPELINE DEBUG ===", {
+        correlationId,
+        finalCandidateIds,
+        pipelineCommandsCount: finalCandidateIds.length * 4,
+        pipelineCommands: finalCandidateIds.map((driverId) => [
+          `GET ${RedisKeys.driverStatus(driverId)}`,
+          `GET ${RedisKeys.driverRide(driverId)}`,
+          `GET ${RedisKeys.driverAcceptedOffers(driverId)}`,
+          `GET ${RedisKeys.driverTotalOffers(driverId)}`,
+        ]),
+        redisResultsRaw: redisResults,
+        redisResultsLength: redisResults?.length || 0,
+        redisResultsType: typeof redisResults,
+      });
+
+      // Process Redis results with detailed debugging
+      // for (let i = 0; i < finalCandidateIds.length; i++) {
+      //   const driverId = finalCandidateIds[i];
+      //   const baseIndex = i * 4;
+      //   const status = redisResults?.[baseIndex]?.[1] as string | null;
+      //   const currentRide = redisResults?.[baseIndex + 1]?.[1] as string | null;
+
+      //   // DETAILED DEBUG FOR EACH DRIVER
+      //   this.logger.info(
+      //     `[DEBUG] Driver ${driverId} Redis pipeline breakdown:`,
+      //     {
+      //       correlationId,
+      //       driverId,
+      //       baseIndex,
+      //       statusResult: {
+      //         fullResult: redisResults?.[baseIndex],
+      //         rawValue: redisResults?.[baseIndex]?.[1],
+      //         processedValue: status,
+      //         expectedKey: RedisKeys.driverStatus(driverId),
+      //         valueType: typeof redisResults?.[baseIndex]?.[1],
+      //         valueLength: redisResults?.[baseIndex]?.[1]?.length || 0,
+      //       },
+      //       rideResult: {
+      //         fullResult: redisResults?.[baseIndex + 1],
+      //         rawValue: redisResults?.[baseIndex + 1]?.[1],
+      //         processedValue: currentRide,
+      //         expectedKey: RedisKeys.driverRide(driverId),
+      //       },
+      //       acceptedResult: {
+      //         fullResult: redisResults?.[baseIndex + 2],
+      //         rawValue: redisResults?.[baseIndex + 2]?.[1],
+      //         expectedKey: RedisKeys.driverAcceptedOffers(driverId),
+      //       },
+      //       totalResult: {
+      //         fullResult: redisResults?.[baseIndex + 3],
+      //         rawValue: redisResults?.[baseIndex + 3]?.[1],
+      //         expectedKey: RedisKeys.driverTotalOffers(driverId),
+      //       },
+      //     }
+      //   );
+
+      //   // Manual Redis check for comparison
+      //   try {
+      //     const manualStatusCheck = await redisClient.get(
+      //       RedisKeys.driverStatus(driverId)
+      //     );
+      //     this.logger.info(
+      //       `[DEBUG] Manual Redis check for driver ${driverId}:`,
+      //       {
+      //         correlationId,
+      //         driverId,
+      //         manualStatus: manualStatusCheck,
+      //         pipelineStatus: status,
+      //         valuesMatch: manualStatusCheck === status,
+      //         manualStatusType: typeof manualStatusCheck,
+      //         pipelineStatusType: typeof status,
+      //       }
+      //     );
+      //   } catch (manualError) {
+      //     this.logger.error(
+      //       `Manual Redis check failed for driver ${driverId}:`,
+      //       {
+      //         correlationId,
+      //         driverId,
+      //         error: manualError.message,
+      //       }
+      //     );
+      //   }
+
+      //   this.logger.info(`Driver ${driverId} status check:`, {
+      //     correlationId,
+      //     driverId,
+      //     status,
+      //     currentRide,
+      //     isOnline: status === "online",
+      //     isFree: !currentRide,
+      //     statusComparison: {
+      //       exact: status === "online",
+      //       lowercase: status?.toLowerCase() === "online",
+      //       trimmed: status?.trim() === "online",
+      //       statusString: JSON.stringify(status),
+      //       statusCharCodes: status?.split("").map((c) => c.charCodeAt(0)),
+      //     },
+      //   });
+
+      //   if (status !== "online" || currentRide) {
+      //     this.logger.info(`Driver ${driverId} filtered out:`, {
+      //       correlationId,
+      //       driverId,
+      //       reason:
+      //         status !== "online"
+      //           ? `status is '${status}' (length: ${status?.length}) not 'online'`
+      //           : `has active ride: ${currentRide}`,
+      //       statusDetails: {
+      //         value: status,
+      //         type: typeof status,
+      //         length: status?.length || 0,
+      //         charCodes: status?.split("").map((c) => c.charCodeAt(0)),
+      //         isNull: status === null,
+      //         isUndefined: status === undefined,
+      //         isEmpty: status === "",
+      //         jsonStringified: JSON.stringify(status),
+      //       },
+      //     });
+      //     continue; // Only keep online and free drivers
+      //   }
+
+      //   const acceptedStr = redisResults?.[baseIndex + 2]?.[1] as string | null;
+      //   const totalStr = redisResults?.[baseIndex + 3]?.[1] as string | null;
+      //   const accepted = Number(acceptedStr) || 0;
+      //   const total = Number(totalStr) || 0;
+      //   const acceptanceRate = total > 0 ? accepted / total : 0.5;
+      //   const score = 1 + 2 * acceptanceRate;
+
+      //   candidatesWithScore.push({ id: driverId, score });
+
+      //   this.logger.info(`Driver ${driverId} added to candidates:`, {
+      //     correlationId,
+      //     driverId,
+      //     score,
+      //     accepted,
+      //     total,
+      //     acceptanceRate,
+      //   });
+      // }
+
+      // REPLACE this section in your getNearestAvailableDriver method:
+
+      // Process Redis results with FIXED indexing
       for (let i = 0; i < finalCandidateIds.length; i++) {
         const driverId = finalCandidateIds[i];
         const baseIndex = i * 4;
-        const status = redisResults?.[baseIndex]?.[1] as string | null;
-        const currentRide = redisResults?.[baseIndex + 1]?.[1] as string | null;
+
+        // FIX: Use [0] instead of [1] - direct value, not [error, value] structure
+        const status = redisResults?.[baseIndex] as string | null;
+        const currentRide = redisResults?.[baseIndex + 1] as string | null;
+        const acceptedStr = redisResults?.[baseIndex + 2] as string | null;
+        const totalStr = redisResults?.[baseIndex + 3] as string | null;
+
+        this.logger.info(`Driver ${driverId} status check:`, {
+          correlationId,
+          driverId,
+          status,
+          currentRide,
+          isOnline: status === "online",
+          isFree: !currentRide,
+        });
 
         if (status !== "online" || currentRide) {
-          continue; // Faqat onlayn va bo'sh haydovchilarni qoldiramiz
+          this.logger.info(`Driver ${driverId} filtered out:`, {
+            correlationId,
+            driverId,
+            reason:
+              status !== "online"
+                ? `status is '${status}' not 'online'`
+                : `has active ride: ${currentRide}`,
+          });
+          continue; // Only keep online and free drivers
         }
 
-        const acceptedStr = redisResults?.[baseIndex + 2]?.[1] as string | null;
-        const totalStr = redisResults?.[baseIndex + 3]?.[1] as string | null;
         const accepted = Number(acceptedStr) || 0;
         const total = Number(totalStr) || 0;
         const acceptanceRate = total > 0 ? accepted / total : 0.5;
-        const score = 1 + 2 * acceptanceRate; // Reyting hisoblash
+        const score = 1 + 2 * acceptanceRate;
 
         candidatesWithScore.push({ id: driverId, score });
-      }
 
+        this.logger.info(`Driver ${driverId} added to candidates:`, {
+          correlationId,
+          driverId,
+          score,
+          accepted,
+          total,
+          acceptanceRate,
+        });
+      }
       if (candidatesWithScore.length === 0) {
         this.logger.info(
           "No available (online and free) drivers found from the final candidates.",
@@ -1024,20 +1315,20 @@ export class RidesService {
         return null;
       }
 
-      // Eng yaxshi reytingli haydovchini birinchi o'ringa qo'yish
+      // Sort by best score first
       candidatesWithScore.sort((a, b) => b.score - a.score);
 
-      // QADAM 5: ENG YAXSHI NOMZODNI QULFLASHGA URINISH
+      // QADAM 5: LOCK THE BEST CANDIDATE
       for (const candidate of candidatesWithScore) {
         const lockKey = `lock:driver:${candidate.id}`;
         try {
           if (
             !(await acquireLock(lockKey, this.config.lockTtlMs, correlationId))
           ) {
-            continue; // Qulf ololmasak, keyingisiga o'tamiz
+            continue;
           }
 
-          // Qulf olingandan keyin qayta tekshiruv (double-check)
+          // Double-check after acquiring lock
           const [statusCheck, currentRideCheck] =
             await this.circuitBreaker.execute(async () => {
               return await Promise.all([
@@ -1054,9 +1345,9 @@ export class RidesService {
                 score: candidate.score,
               }
             );
-            return { driverId: candidate.id, lockKey }; // Muvaffaqiyat!
+            return { driverId: candidate.id, lockKey };
           } else {
-            await releaseLock(lockKey, correlationId); // Qulfni bo'shatish
+            await releaseLock(lockKey, correlationId);
           }
         } catch (error) {
           this.logger.warn(
@@ -1066,7 +1357,7 @@ export class RidesService {
               error: error.message,
             }
           );
-          await releaseLock(lockKey, correlationId).catch(() => {}); // Xatolik bo'lsa ham qulfni bo'shatishga urinish
+          await releaseLock(lockKey, correlationId).catch(() => {});
           continue;
         }
       }
@@ -1082,9 +1373,9 @@ export class RidesService {
         error: error.message,
         stack: error.stack,
       });
-      throw error; // Xatoni yuqoriga uzatish
+      throw error;
     } finally {
-      timer(); // Metrika uchun taymerni to'xtatish
+      timer();
     }
   }
 
@@ -1114,6 +1405,76 @@ export class RidesService {
     }
   }
 
+  // private async sendRideRequestWithTimeout(
+  //   driverId: number,
+  //   ride: Ride,
+  //   clientId: number,
+  //   correlationId: string
+  // ): Promise<{ success: boolean; acknowledged: boolean }> {
+  //   return new Promise((resolve) => {
+  //     let acknowledged = false;
+
+  //     const timeout = setTimeout(() => {
+  //       if (!acknowledged) {
+  //         this.logger.warn("Driver acknowledgment timeout", {
+  //           correlationId,
+  //           driverId,
+  //           rideId: ride.id,
+  //           timeoutMs: this.config.ackTimeoutMs,
+  //         });
+  //         resolve({ success: false, acknowledged: false });
+  //       }
+  //     }, this.config.ackTimeoutMs);
+
+  //     this.logger.info("Sending ride request to driver", {
+  //       correlationId,
+  //       driverId,
+  //       rideId: ride.id,
+  //     });
+
+  //     this.socketServer.emit(
+  //       `rideRequest:${driverId}`,
+  //       {
+  //         rideId: ride.id,
+  //         correlationId,
+  //         pickup: {
+  //           lat: ride.pickup_latitude,
+  //           lng: ride.pickup_longitude,
+  //           address: ride.pickup_address,
+  //         },
+  //         destination: {
+  //           lat: ride.destination_latitude,
+  //           lng: ride.destination_longitude,
+  //           address: ride.destination_address,
+  //         },
+  //         estimatedFare: ride.estimated_fare,
+  //         tariff: ride.tariff_type,
+  //         clientId: clientId,
+  //         timestamp: new Date().toISOString(),
+  //       },
+  //       (ack: { success: boolean } | undefined) => {
+  //         acknowledged = true;
+  //         clearTimeout(timeout);
+
+  //         const result = ack || { success: false };
+
+  //         this.logger.info("Received driver acknowledgment", {
+  //           correlationId,
+  //           driverId,
+  //           rideId: ride.id,
+  //           success: result.success,
+  //         });
+
+  //         resolve({ ...result, acknowledged: true });
+  //       }
+  //     );
+  //   });
+  // }
+
+  // Rate limiting helper
+
+  // Minimal fix: Just add a null check to your existing sendRideRequestWithTimeout:
+
   private async sendRideRequestWithTimeout(
     driverId: number,
     ride: Ride,
@@ -1122,18 +1483,27 @@ export class RidesService {
   ): Promise<{ success: boolean; acknowledged: boolean }> {
     return new Promise((resolve) => {
       let acknowledged = false;
+      let responseTimeout: NodeJS.Timeout;
 
-      const timeout = setTimeout(() => {
+      const cleanup = () => {
+        if (responseTimeout) clearTimeout(responseTimeout);
+      };
+
+      // Set up timeout
+      const timeoutMs = this.config.ackTimeoutMs || 30000; // 30 seconds
+      responseTimeout = setTimeout(() => {
         if (!acknowledged) {
-          this.logger.warn("Driver acknowledgment timeout", {
+          acknowledged = true;
+          cleanup();
+          this.logger.warn("Driver response timeout", {
             correlationId,
             driverId,
             rideId: ride.id,
-            timeoutMs: this.config.ackTimeoutMs,
+            timeoutMs,
           });
           resolve({ success: false, acknowledged: false });
         }
-      }, this.config.ackTimeoutMs);
+      }, timeoutMs);
 
       this.logger.info("Sending ride request to driver", {
         correlationId,
@@ -1141,46 +1511,84 @@ export class RidesService {
         rideId: ride.id,
       });
 
-      this.socketServer.emit(
-        `rideRequest:${driverId}`,
-        {
-          rideId: ride.id,
+      // Check if WebSocket server is available
+      if (!this.socketServer) {
+        this.logger.error("WebSocket server not available", {
           correlationId,
-          pickup: {
-            lat: ride.pickup_latitude,
-            lng: ride.pickup_longitude,
-            address: ride.pickup_address,
-          },
-          destination: {
-            lat: ride.destination_latitude,
-            lng: ride.destination_longitude,
-            address: ride.destination_address,
-          },
-          estimatedFare: ride.estimated_fare,
-          tariff: ride.tariff_type,
-          clientId: clientId,
-          timestamp: new Date().toISOString(),
-        },
-        (ack: { success: boolean } | undefined) => {
+          driverId,
+          rideId: ride.id,
+        });
+        cleanup();
+        acknowledged = true;
+        resolve({ success: false, acknowledged: false });
+        return;
+      }
+
+      // Create a unique response channel for this ride
+      const responseChannel = `ride:${ride.id}:response`;
+
+      // Set up one-time listener for driver response
+      const handleDriverResponse = (response: {
+        rideId: number;
+        driverId: number;
+        accepted: boolean;
+        timestamp: number;
+      }) => {
+        if (
+          response.rideId === ride.id &&
+          response.driverId === driverId &&
+          !acknowledged
+        ) {
           acknowledged = true;
-          clearTimeout(timeout);
+          cleanup();
 
-          const result = ack || { success: false };
-
-          this.logger.info("Received driver acknowledgment", {
+          this.logger.info("Received driver response", {
             correlationId,
             driverId,
             rideId: ride.id,
-            success: result.success,
+            accepted: response.accepted,
+            responseTime: Date.now() - response.timestamp,
           });
 
-          resolve({ ...result, acknowledged: true });
+          resolve({ success: response.accepted, acknowledged: true });
         }
-      );
+      };
+
+      // Listen for driver response
+      this.socketServer.on(responseChannel, handleDriverResponse);
+
+      // Send ride request to driver's room
+      this.socketServer.to(`driver:${driverId}`).emit("ride:request", {
+        rideId: ride.id,
+        correlationId,
+        pickup: {
+          lat: ride.pickup_latitude,
+          lng: ride.pickup_longitude,
+          address: ride.pickup_address,
+        },
+        destination: {
+          lat: ride.destination_latitude,
+          lng: ride.destination_longitude,
+          address: ride.destination_address,
+        },
+        estimatedFare: ride.estimated_fare,
+        tariff: ride.tariff_type,
+        clientId: clientId,
+        timestamp: Date.now(),
+        responseChannel, // Tell driver which channel to respond on
+        expiresAt: Date.now() + timeoutMs,
+      });
+
+      this.logger.info("Ride request sent to driver", {
+        correlationId,
+        driverId,
+        rideId: ride.id,
+        room: `driver:${driverId}`,
+        responseChannel,
+      });
     });
   }
 
-  // Rate limiting helper
   private async checkRateLimit(
     clientId: number,
     correlationId: string

@@ -18,7 +18,7 @@ import { Roles } from "../common/decorators/role.decorator";
 import { WsRoleGuard } from "../auth/ws.role.guard";
 import { WsAuthGuard } from "../auth/ws-auth.guard";
 import { WsException } from "@nestjs/websockets";
-
+import { setSocketInstance } from "../socket/socket.provider";
 // --- Interfaces ---
 interface DriverLocation {
   driverId: string;
@@ -90,6 +90,9 @@ export class LocationGateway
 
   afterInit(server: Server) {
     this.logger.log("LocationGateway initialized (Manual Online/Offline Mode)");
+
+    setSocketInstance(server);
+    this.logger.log("✅ Socket server instance shared with provider");
   }
 
   // === CONNECTION MANAGEMENT ===
@@ -446,8 +449,8 @@ export class LocationGateway
       // Validate coordinates before Redis operation
       this.validateCoordinates(location.lat, location.lng);
 
-      // Update Redis geospatial data - Fix: Use the correct parameter format
-      const geoAddResult = await redisClient.geoAdd("drivers:location", {
+      // FIXED: Change from "drivers:location" to "drivers:geo" to match search service
+      const geoAddResult = await redisClient.geoAdd("drivers:geo", {
         longitude: Number(location.lng),
         latitude: Number(location.lat),
         member: driverId.toString(),
@@ -483,6 +486,40 @@ export class LocationGateway
     }
   }
 
+  private async getDriversInBounds(
+    bounds: ViewBounds
+  ): Promise<DriverLocation[]> {
+    try {
+      // FIXED: Change from "drivers:location" to "drivers:geo"
+      const driverIds = await redisClient.geoRadius(
+        "drivers:geo",
+        {
+          longitude: (bounds.ne.lng + bounds.sw.lng) / 2,
+          latitude: (bounds.ne.lat + bounds.sw.lat) / 2,
+        },
+        this.calculateDistance(bounds.ne, bounds.sw),
+        "km"
+      );
+
+      return await this.getDriverLocationDetails(driverIds as string[]);
+    } catch (error) {
+      this.logger.error(`Failed to search drivers in bounds: ${error.message}`);
+      throw new Error("Failed to search drivers");
+    }
+  }
+
+  private async removeDriverLocation(driverId: string) {
+    try {
+      const pipeline = redisClient.multi();
+      // FIXED: Change from "drivers:location" to "drivers:geo"
+      pipeline.zRem("drivers:geo", driverId);
+      pipeline.del(`driver:${driverId}:location`);
+      await pipeline.exec();
+    } catch (error) {
+      this.logger.error(`Failed to remove driver location: ${error.message}`);
+    }
+  }
+
   private async broadcastLocationUpdate(
     driverId: string,
     location: UpdateLocationDto
@@ -507,26 +544,26 @@ export class LocationGateway
     }
   }
 
-  private async getDriversInBounds(
-    bounds: ViewBounds
-  ): Promise<DriverLocation[]> {
-    try {
-      const driverIds = await redisClient.geoRadius(
-        "drivers:location",
-        {
-          longitude: (bounds.ne.lng + bounds.sw.lng) / 2,
-          latitude: (bounds.ne.lat + bounds.sw.lat) / 2,
-        },
-        this.calculateDistance(bounds.ne, bounds.sw),
-        "km"
-      );
+  // private async getDriversInBounds(
+  //   bounds: ViewBounds
+  // ): Promise<DriverLocation[]> {
+  //   try {
+  //     const driverIds = await redisClient.geoRadius(
+  //       "drivers:location",
+  //       {
+  //         longitude: (bounds.ne.lng + bounds.sw.lng) / 2,
+  //         latitude: (bounds.ne.lat + bounds.sw.lat) / 2,
+  //       },
+  //       this.calculateDistance(bounds.ne, bounds.sw),
+  //       "km"
+  //     );
 
-      return await this.getDriverLocationDetails(driverIds as string[]);
-    } catch (error) {
-      this.logger.error(`Failed to search drivers in bounds: ${error.message}`);
-      throw new Error("Failed to search drivers");
-    }
-  }
+  //     return await this.getDriverLocationDetails(driverIds as string[]);
+  //   } catch (error) {
+  //     this.logger.error(`Failed to search drivers in bounds: ${error.message}`);
+  //     throw new Error("Failed to search drivers");
+  //   }
+  // }
 
   private async getDriverLocationDetails(
     driverIds: string[]
@@ -576,16 +613,16 @@ export class LocationGateway
     }
   }
 
-  private async removeDriverLocation(driverId: string) {
-    try {
-      const pipeline = redisClient.multi();
-      pipeline.zRem("drivers:location", driverId);
-      pipeline.del(`driver:${driverId}:location`);
-      await pipeline.exec();
-    } catch (error) {
-      this.logger.error(`Failed to remove driver location: ${error.message}`);
-    }
-  }
+  // private async removeDriverLocation(driverId: string) {
+  //   try {
+  //     const pipeline = redisClient.multi();
+  //     pipeline.zRem("drivers:location", driverId);
+  //     pipeline.del(`driver:${driverId}:location`);
+  //     await pipeline.exec();
+  //   } catch (error) {
+  //     this.logger.error(`Failed to remove driver location: ${error.message}`);
+  //   }
+  // }
 
   @SubscribeMessage("test:ping")
   handleTestPing(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
@@ -919,5 +956,210 @@ export class LocationGateway
       this.logger.error(`Failed to get order details: ${error.message}`);
       return null;
     }
+  }
+
+  // Add these methods to your LocationGateway for driver ride management
+
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("driver")
+  @SubscribeMessage("ride:respond")
+  async handleRideResponse(
+    @MessageBody()
+    data: {
+      rideId: number;
+      accepted: boolean;
+      reason?: string;
+    },
+    @ConnectedSocket() client: Socket
+  ) {
+    const user = client.data.user as AuthenticatedUser;
+    const driverId = parseInt(user.userId);
+
+    if (!data.rideId || typeof data.accepted !== "boolean") {
+      throw new WsException("RideId and accepted (boolean) are required");
+    }
+
+    try {
+      this.logger.log(
+        `Driver ${driverId} ${data.accepted ? "accepted" : "rejected"} ride ${data.rideId}`,
+        {
+          driverId,
+          rideId: data.rideId,
+          accepted: data.accepted,
+          reason: data.reason,
+        }
+      );
+
+      // Send response back to the rides service
+      const responseChannel = `ride:${data.rideId}:response`;
+      this.server.emit(responseChannel, {
+        rideId: data.rideId,
+        driverId: driverId,
+        accepted: data.accepted,
+        reason: data.reason,
+        timestamp: Date.now(),
+      });
+
+      // Update Redis state
+      if (data.accepted) {
+        await redisClient.incr(`driver:${driverId}:accepted_offers`);
+
+        // Notify client that driver was found
+        this.server
+          .to(`ride:${data.rideId}:client`)
+          .emit("ride:driver-assigned", {
+            rideId: data.rideId,
+            driverId: driverId,
+            driverName: `Driver ${driverId}`, // You can enhance this with actual driver name
+            timestamp: Date.now(),
+          });
+      } else {
+        // If rejected, you might want to trigger finding another driver
+        this.server.emit("ride:driver-rejected", {
+          rideId: data.rideId,
+          driverId: driverId,
+          reason: data.reason,
+          timestamp: Date.now(),
+        });
+      }
+
+      return {
+        success: true,
+        message: data.accepted ? "Ride accepted" : "Ride rejected",
+        rideId: data.rideId,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to process ride response: ${error.message}`, {
+        driverId,
+        rideId: data.rideId,
+        error: error.message,
+      });
+      throw new WsException("Failed to process ride response");
+    }
+  }
+
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("driver")
+  @SubscribeMessage("ride:start")
+  async handleRideStart(
+    @MessageBody() data: { rideId: number },
+    @ConnectedSocket() client: Socket
+  ) {
+    const user = client.data.user as AuthenticatedUser;
+    const driverId = parseInt(user.userId);
+
+    try {
+      // Update ride status in database (you'll need to inject RidesService or create a method)
+      // For now, we'll just update Redis and notify
+      await redisClient.set(`ride:${data.rideId}:status`, "in_progress", {
+        EX: 3600,
+      });
+      await redisClient.set(
+        `ride:${data.rideId}:started_at`,
+        Date.now().toString(),
+        { EX: 3600 }
+      );
+
+      // Notify client that ride has started
+      this.server.to(`ride:${data.rideId}:client`).emit("ride:started", {
+        rideId: data.rideId,
+        driverId: driverId,
+        startedAt: new Date().toISOString(),
+        message: "Your ride has started!",
+      });
+
+      this.logger.log(`Ride ${data.rideId} started by driver ${driverId}`);
+
+      return {
+        success: true,
+        message: "Ride started",
+        rideId: data.rideId,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to start ride: ${error.message}`);
+      throw new WsException("Failed to start ride");
+    }
+  }
+
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("driver")
+  @SubscribeMessage("ride:complete")
+  async handleRideComplete(
+    @MessageBody()
+    data: {
+      rideId: number;
+      finalFare?: number;
+      actualDistance?: number;
+      actualDuration?: number;
+    },
+    @ConnectedSocket() client: Socket
+  ) {
+    const user = client.data.user as AuthenticatedUser;
+    const driverId = parseInt(user.userId);
+
+    try {
+      // Update ride status
+      await redisClient.set(`ride:${data.rideId}:status`, "completed", {
+        EX: 3600,
+      });
+      await redisClient.set(
+        `ride:${data.rideId}:completed_at`,
+        Date.now().toString(),
+        { EX: 3600 }
+      );
+
+      // Clear driver's current ride
+      await redisClient.del(`driver:${driverId}:ride`);
+
+      // Notify client that ride is complete
+      this.server.to(`ride:${data.rideId}:client`).emit("ride:completed", {
+        rideId: data.rideId,
+        driverId: driverId,
+        completedAt: new Date().toISOString(),
+        finalFare: data.finalFare,
+        actualDistance: data.actualDistance,
+        actualDuration: data.actualDuration,
+        message: "Your ride is complete! Thank you for riding with us.",
+      });
+
+      this.logger.log(`Ride ${data.rideId} completed by driver ${driverId}`);
+
+      return {
+        success: true,
+        message: "Ride completed",
+        rideId: data.rideId,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to complete ride: ${error.message}`);
+      throw new WsException("Failed to complete ride");
+    }
+  }
+
+  // Client subscription to ride updates
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("client")
+  @SubscribeMessage("ride:subscribe")
+  async handleRideSubscription(
+    @MessageBody() data: { rideId: number },
+    @ConnectedSocket() client: Socket
+  ) {
+    if (!data.rideId) {
+      throw new WsException("Ride ID is required");
+    }
+
+    const user = client.data.user as AuthenticatedUser;
+    const clientRoom = `ride:${data.rideId}:client`;
+
+    client.join(clientRoom);
+
+    this.logger.log(
+      `Client ${user.userId} subscribed to ride ${data.rideId} updates`
+    );
+
+    return {
+      success: true,
+      message: `Subscribed to ride ${data.rideId} updates`,
+      room: clientRoom,
+    };
   }
 }
