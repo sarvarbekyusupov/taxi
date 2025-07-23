@@ -49,6 +49,7 @@ import { GetCurrentUser } from "../common/decorators/get-current-user.decorator"
 import { redisClient } from "../redis/redis.provider";
 import {  UpdateDriverDocumentsApiDto } from "./dto/update-license.dto";
 import { Driver } from "./entities/driver.entity";
+import { RedisKeys } from "../constants/redis.keys";
 
 // ==================================
 // ======== SWAGGER DTOs ============
@@ -77,7 +78,7 @@ class TokenRefreshResponseDto {
   accessToken: string;
 }
 class StatusToggleDto {
-  isOnline: boolean;
+  is_online: boolean;
 }
 class GenericMessageDto {
   message: string;
@@ -597,22 +598,22 @@ export class DriverController {
     schema: {
       type: "object",
       properties: {
-        isOnline: {
+        is_online: {
           type: "boolean",
           description: "Set to true to go online, false to go offline",
           example: true,
         },
       },
-      required: ["isOnline"],
+      required: ["is_online"],
     },
     examples: {
       go_online: {
         summary: "Go Online",
-        value: { isOnline: true },
+        value: { is_online: true },
       },
       go_offline: {
         summary: "Go Offline",
-        value: { isOnline: false },
+        value: { is_online: false },
       },
     },
   })
@@ -653,9 +654,11 @@ export class DriverController {
   ) {
     await redisClient.set(
       `driver:${driverId}:status`,
-      body.isOnline ? "online" : "offline"
+      body.is_online ? "online" : "offline"
     );
-    return { message: `Driver is now ${body.isOnline ? "online" : "offline"}` };
+    return {
+      message: `Driver is now ${body.is_online ? "online" : "offline"}`,
+    };
   }
 
   //==================== GO ONLINE ========================
@@ -667,72 +670,47 @@ export class DriverController {
   @ApiOperation({
     summary: "2.6. Driver Goes Online with Location",
     description:
-      "Marks the driver as online and sets their initial location in Redis. Required for enabling ride matching.",
+      "Marks the driver as online in the database and sets their real-time location in Redis. Required for enabling ride matching.",
   })
   @ApiBody({
-    description: "Driver ID and location coordinates.",
+    description: "Driver's location coordinates.",
     schema: {
       type: "object",
       properties: {
-        driverId: {
-          type: "number",
-          example: 42,
-          description: "Unique ID of the authenticated driver",
-        },
-        lat: {
-          type: "number",
-          example: 41.3111,
-          description: "Latitude of driver's current location",
-        },
-        lng: {
-          type: "number",
-          example: 69.2797,
-          description: "Longitude of driver's current location",
-        },
+        lat: { type: "number", example: 41.3111 },
+        lng: { type: "number", example: 69.2797 },
       },
-      required: ["driverId", "lat", "lng"],
-    },
-    examples: {
-      go_online: {
-        summary: "Driver sets their location and goes online",
-        value: {
-          driverId: 42,
-          lat: 41.3111,
-          lng: 69.2797,
-        },
-      },
+      required: ["lat", "lng"],
     },
   })
   @ApiResponse({
     status: 200,
-    description: "Driver is now online and location stored in Redis.",
-    content: {
-      "application/json": {
-        example: {
-          message: "Driver is now online and location updated",
-        },
-      },
-    },
+    description: "Driver is now online and location updated",
   })
-  @ApiResponse({
-    status: 500,
-    description: "Internal Server Error: Failed to set status or location.",
-    content: {
-      "application/json": {
-        example: {
-          statusCode: 500,
-          message: "Failed to set driver online",
-          error: "Internal Server Error",
-        },
-      },
-    },
-  })
-  async goOnline(@Body() goOnlineDto: GoOnlineDto) {
+  async goOnline(
+    @Body() goOnlineDto: GoOnlineDto,
+    @GetCurrentUser("id") driverId: number
+  ) {
+    // The driverId is taken securely from the JWT token, not the body.
     return this.driverService.goOnline(
-      goOnlineDto.driverId,
+      driverId,
       goOnlineDto.lat,
       goOnlineDto.lng
     );
+  }
+
+  @Post("go-offline")
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("driver")
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "2.7. Driver Goes Offline",
+    description:
+      "Marks the driver as offline in the database and removes them from real-time ride matching in Redis.",
+  })
+  @ApiResponse({ status: 200, description: "Driver is now offline" })
+  async goOffline(@GetCurrentUser("id") driverId: number) {
+    return this.driverService.goOffline(driverId);
   }
 
   // @Put("location")

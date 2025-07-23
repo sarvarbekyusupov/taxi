@@ -231,6 +231,9 @@ export class RidesService {
     // @Inject(forwardRef(() => LocationGateway))
     // private readonly locationGateway: LocationGateway
   ) {
+    if (!this.socketServer) {
+      this.logger.warn("WebSocket server not available during initialization");
+    }
     // Load and validate configuration
     this.config = this.loadConfiguration();
     this.validateConfiguration();
@@ -1131,151 +1134,64 @@ export class RidesService {
         redisResultsType: typeof redisResults,
       });
 
-      // Process Redis results with detailed debugging
-      // for (let i = 0; i < finalCandidateIds.length; i++) {
-      //   const driverId = finalCandidateIds[i];
-      //   const baseIndex = i * 4;
-      //   const status = redisResults?.[baseIndex]?.[1] as string | null;
-      //   const currentRide = redisResults?.[baseIndex + 1]?.[1] as string | null;
+      // RidesService.ts - Fixed Redis pipeline result processing
 
-      //   // DETAILED DEBUG FOR EACH DRIVER
-      //   this.logger.info(
-      //     `[DEBUG] Driver ${driverId} Redis pipeline breakdown:`,
-      //     {
-      //       correlationId,
-      //       driverId,
-      //       baseIndex,
-      //       statusResult: {
-      //         fullResult: redisResults?.[baseIndex],
-      //         rawValue: redisResults?.[baseIndex]?.[1],
-      //         processedValue: status,
-      //         expectedKey: RedisKeys.driverStatus(driverId),
-      //         valueType: typeof redisResults?.[baseIndex]?.[1],
-      //         valueLength: redisResults?.[baseIndex]?.[1]?.length || 0,
-      //       },
-      //       rideResult: {
-      //         fullResult: redisResults?.[baseIndex + 1],
-      //         rawValue: redisResults?.[baseIndex + 1]?.[1],
-      //         processedValue: currentRide,
-      //         expectedKey: RedisKeys.driverRide(driverId),
-      //       },
-      //       acceptedResult: {
-      //         fullResult: redisResults?.[baseIndex + 2],
-      //         rawValue: redisResults?.[baseIndex + 2]?.[1],
-      //         expectedKey: RedisKeys.driverAcceptedOffers(driverId),
-      //       },
-      //       totalResult: {
-      //         fullResult: redisResults?.[baseIndex + 3],
-      //         rawValue: redisResults?.[baseIndex + 3]?.[1],
-      //         expectedKey: RedisKeys.driverTotalOffers(driverId),
-      //       },
-      //     }
-      //   );
+      // In the getNearestAvailableDriver method, replace the pipeline processing section:
 
-      //   // Manual Redis check for comparison
-      //   try {
-      //     const manualStatusCheck = await redisClient.get(
-      //       RedisKeys.driverStatus(driverId)
-      //     );
-      //     this.logger.info(
-      //       `[DEBUG] Manual Redis check for driver ${driverId}:`,
-      //       {
-      //         correlationId,
-      //         driverId,
-      //         manualStatus: manualStatusCheck,
-      //         pipelineStatus: status,
-      //         valuesMatch: manualStatusCheck === status,
-      //         manualStatusType: typeof manualStatusCheck,
-      //         pipelineStatusType: typeof status,
-      //       }
-      //     );
-      //   } catch (manualError) {
-      //     this.logger.error(
-      //       `Manual Redis check failed for driver ${driverId}:`,
-      //       {
-      //         correlationId,
-      //         driverId,
-      //         error: manualError.message,
-      //       }
-      //     );
-      //   }
+      // ❌ OLD CODE (around line with pipeline processing):
+      // const status = redisResults?.[baseIndex]?.[1] as string | null;
+      // const currentRide = redisResults?.[baseIndex + 1]?.[1] as string | null;
+      // const acceptedStr = redisResults?.[baseIndex + 2]?.[1] as string | null;
+      // const totalStr = redisResults?.[baseIndex + 3]?.[1] as string | null;
 
-      //   this.logger.info(`Driver ${driverId} status check:`, {
-      //     correlationId,
-      //     driverId,
-      //     status,
-      //     currentRide,
-      //     isOnline: status === "online",
-      //     isFree: !currentRide,
-      //     statusComparison: {
-      //       exact: status === "online",
-      //       lowercase: status?.toLowerCase() === "online",
-      //       trimmed: status?.trim() === "online",
-      //       statusString: JSON.stringify(status),
-      //       statusCharCodes: status?.split("").map((c) => c.charCodeAt(0)),
-      //     },
-      //   });
-
-      //   if (status !== "online" || currentRide) {
-      //     this.logger.info(`Driver ${driverId} filtered out:`, {
-      //       correlationId,
-      //       driverId,
-      //       reason:
-      //         status !== "online"
-      //           ? `status is '${status}' (length: ${status?.length}) not 'online'`
-      //           : `has active ride: ${currentRide}`,
-      //       statusDetails: {
-      //         value: status,
-      //         type: typeof status,
-      //         length: status?.length || 0,
-      //         charCodes: status?.split("").map((c) => c.charCodeAt(0)),
-      //         isNull: status === null,
-      //         isUndefined: status === undefined,
-      //         isEmpty: status === "",
-      //         jsonStringified: JSON.stringify(status),
-      //       },
-      //     });
-      //     continue; // Only keep online and free drivers
-      //   }
-
-      //   const acceptedStr = redisResults?.[baseIndex + 2]?.[1] as string | null;
-      //   const totalStr = redisResults?.[baseIndex + 3]?.[1] as string | null;
-      //   const accepted = Number(acceptedStr) || 0;
-      //   const total = Number(totalStr) || 0;
-      //   const acceptanceRate = total > 0 ? accepted / total : 0.5;
-      //   const score = 1 + 2 * acceptanceRate;
-
-      //   candidatesWithScore.push({ id: driverId, score });
-
-      //   this.logger.info(`Driver ${driverId} added to candidates:`, {
-      //     correlationId,
-      //     driverId,
-      //     score,
-      //     accepted,
-      //     total,
-      //     acceptanceRate,
-      //   });
-      // }
-
-      // REPLACE this section in your getNearestAvailableDriver method:
-
-      // Process Redis results with FIXED indexing
+      // ✅ NEW FIXED CODE:
       for (let i = 0; i < finalCandidateIds.length; i++) {
         const driverId = finalCandidateIds[i];
         const baseIndex = i * 4;
 
-        // FIX: Use [0] instead of [1] - direct value, not [error, value] structure
-        const status = redisResults?.[baseIndex] as string | null;
-        const currentRide = redisResults?.[baseIndex + 1] as string | null;
-        const acceptedStr = redisResults?.[baseIndex + 2] as string | null;
-        const totalStr = redisResults?.[baseIndex + 3] as string | null;
+        // 🔧 FIXED: Redis pipeline returns [error, result] pairs
+        // Access the result value directly, not [1]
+        const statusResult = redisResults?.[baseIndex];
+        const rideResult = redisResults?.[baseIndex + 1];
+        const acceptedResult = redisResults?.[baseIndex + 2];
+        const totalResult = redisResults?.[baseIndex + 3];
+
+        // Extract the actual values
+        const status = statusResult?.[1] as string | null;
+        const currentRide = rideResult?.[1] as string | null;
+        const acceptedStr = acceptedResult?.[1] as string | null;
+        const totalStr = totalResult?.[1] as string | null;
+
+        // 🔍 ENHANCED DEBUG - Show both raw result and extracted value
+        console.log(`[DEBUG] Driver ${driverId} pipeline result analysis:`, {
+          driverId,
+          baseIndex,
+          rawResults: {
+            statusResult,
+            rideResult,
+            acceptedResult,
+            totalResult,
+          },
+          extractedValues: {
+            status,
+            currentRide,
+            acceptedStr,
+            totalStr,
+          },
+          statusCheck: {
+            isString: typeof status === "string",
+            isOnline: status === "online",
+            length: status?.length,
+            rawStatus: JSON.stringify(status),
+          },
+          correlationId,
+        });
 
         this.logger.info(`Driver ${driverId} status check:`, {
           correlationId,
           driverId,
           status,
-          currentRide,
-          isOnline: status === "online",
+          is_online: status === "online",
           isFree: !currentRide,
         });
 
@@ -1288,9 +1204,10 @@ export class RidesService {
                 ? `status is '${status}' not 'online'`
                 : `has active ride: ${currentRide}`,
           });
-          continue; // Only keep online and free drivers
+          continue;
         }
 
+        // Calculate score and add to candidates
         const accepted = Number(acceptedStr) || 0;
         const total = Number(totalStr) || 0;
         const acceptanceRate = total > 0 ? accepted / total : 0.5;
@@ -1306,6 +1223,80 @@ export class RidesService {
           total,
           acceptanceRate,
         });
+      }
+
+      // Alternative approach - if the above doesn't work, try this simpler method:
+      // Replace the pipeline section with individual Redis calls for debugging:
+
+      // 🔧 FALLBACK SOLUTION - Replace pipeline with individual calls
+      // const candidatesWithScore: { id: number; score: number }[] = [];
+
+      for (const driverId of finalCandidateIds) {
+        try {
+          // Make individual Redis calls instead of pipeline
+          const [status, currentRide, acceptedStr, totalStr] =
+            await Promise.all([
+              redisClient.get(RedisKeys.driverStatus(driverId)),
+              redisClient.get(RedisKeys.driverRide(driverId)),
+              redisClient.get(RedisKeys.driverAcceptedOffers(driverId)),
+              redisClient.get(RedisKeys.driverTotalOffers(driverId)),
+            ]);
+
+          console.log(`[DEBUG] Driver ${driverId} individual calls result:`, {
+            driverId,
+            status,
+            statusType: typeof status,
+            currentRide,
+            acceptedStr,
+            totalStr,
+            isOnline: status === "online",
+            correlationId,
+          });
+
+          this.logger.info(`Driver ${driverId} status check:`, {
+            correlationId,
+            driverId,
+            status,
+            is_online: status === "online",
+            isFree: !currentRide,
+          });
+
+          if (status !== "online" || currentRide) {
+            this.logger.info(`Driver ${driverId} filtered out:`, {
+              correlationId,
+              driverId,
+              reason:
+                status !== "online"
+                  ? `status is '${status}' not 'online'`
+                  : `has active ride: ${currentRide}`,
+            });
+            continue;
+          }
+
+          // Calculate score
+          const accepted = Number(acceptedStr) || 0;
+          const total = Number(totalStr) || 0;
+          const acceptanceRate = total > 0 ? accepted / total : 0.5;
+          const score = 1 + 2 * acceptanceRate;
+
+          candidatesWithScore.push({ id: driverId, score });
+
+          this.logger.info(`Driver ${driverId} added to candidates:`, {
+            correlationId,
+            driverId,
+            score,
+            accepted,
+            total,
+            acceptanceRate,
+          });
+        } catch (error) {
+          this.logger.error(`Failed to check driver ${driverId} status:`, {
+            correlationId,
+            driverId,
+            error: error.message,
+          });
+          continue;
+        }
       }
       if (candidatesWithScore.length === 0) {
         this.logger.info(
@@ -1475,6 +1466,120 @@ export class RidesService {
 
   // Minimal fix: Just add a null check to your existing sendRideRequestWithTimeout:
 
+  // private async sendRideRequestWithTimeout(
+  //   driverId: number,
+  //   ride: Ride,
+  //   clientId: number,
+  //   correlationId: string
+  // ): Promise<{ success: boolean; acknowledged: boolean }> {
+  //   return new Promise((resolve) => {
+  //     let acknowledged = false;
+  //     let responseTimeout: NodeJS.Timeout;
+
+  //     const cleanup = () => {
+  //       if (responseTimeout) clearTimeout(responseTimeout);
+  //     };
+
+  //     // Set up timeout
+  //     const timeoutMs = this.config.ackTimeoutMs || 30000; // 30 seconds
+  //     responseTimeout = setTimeout(() => {
+  //       if (!acknowledged) {
+  //         acknowledged = true;
+  //         cleanup();
+  //         this.logger.warn("Driver response timeout", {
+  //           correlationId,
+  //           driverId,
+  //           rideId: ride.id,
+  //           timeoutMs,
+  //         });
+  //         resolve({ success: false, acknowledged: false });
+  //       }
+  //     }, timeoutMs);
+
+  //     this.logger.info("Sending ride request to driver", {
+  //       correlationId,
+  //       driverId,
+  //       rideId: ride.id,
+  //     });
+
+  //     // Check if WebSocket server is available
+  //     if (!this.socketServer) {
+  //       this.logger.error("WebSocket server not available", {
+  //         correlationId,
+  //         driverId,
+  //         rideId: ride.id,
+  //       });
+  //       cleanup();
+  //       acknowledged = true;
+  //       resolve({ success: false, acknowledged: false });
+  //       return;
+  //     }
+
+  //     // Create a unique response channel for this ride
+  //     const responseChannel = `ride:${ride.id}:response`;
+
+  //     // Set up one-time listener for driver response
+  //     const handleDriverResponse = (response: {
+  //       rideId: number;
+  //       driverId: number;
+  //       accepted: boolean;
+  //       timestamp: number;
+  //     }) => {
+  //       if (
+  //         response.rideId === ride.id &&
+  //         response.driverId === driverId &&
+  //         !acknowledged
+  //       ) {
+  //         acknowledged = true;
+  //         cleanup();
+
+  //         this.logger.info("Received driver response", {
+  //           correlationId,
+  //           driverId,
+  //           rideId: ride.id,
+  //           accepted: response.accepted,
+  //           responseTime: Date.now() - response.timestamp,
+  //         });
+
+  //         resolve({ success: response.accepted, acknowledged: true });
+  //       }
+  //     };
+
+  //     // Listen for driver response
+  //     this.socketServer.on(responseChannel, handleDriverResponse);
+
+  //     // Send ride request to driver's room
+  //     this.socketServer.to(`driver:${driverId}`).emit("ride:request", {
+  //       rideId: ride.id,
+  //       correlationId,
+  //       pickup: {
+  //         lat: ride.pickup_latitude,
+  //         lng: ride.pickup_longitude,
+  //         address: ride.pickup_address,
+  //       },
+  //       destination: {
+  //         lat: ride.destination_latitude,
+  //         lng: ride.destination_longitude,
+  //         address: ride.destination_address,
+  //       },
+  //       estimatedFare: ride.estimated_fare,
+  //       tariff: ride.tariff_type,
+  //       clientId: clientId,
+  //       timestamp: Date.now(),
+  //       responseChannel, // Tell driver which channel to respond on
+  //       expiresAt: Date.now() + timeoutMs,
+  //     });
+
+  //     this.logger.info("Ride request sent to driver", {
+  //       correlationId,
+  //       driverId,
+  //       rideId: ride.id,
+  //       room: `driver:${driverId}`,
+  //       responseChannel,
+  //     });
+  //   });
+  // }
+
   private async sendRideRequestWithTimeout(
     driverId: number,
     ride: Ride,
@@ -1489,8 +1594,7 @@ export class RidesService {
         if (responseTimeout) clearTimeout(responseTimeout);
       };
 
-      // Set up timeout
-      const timeoutMs = this.config.ackTimeoutMs || 30000; // 30 seconds
+      const timeoutMs = this.config.ackTimeoutMs || 30000;
       responseTimeout = setTimeout(() => {
         if (!acknowledged) {
           acknowledged = true;
@@ -1505,13 +1609,7 @@ export class RidesService {
         }
       }, timeoutMs);
 
-      this.logger.info("Sending ride request to driver", {
-        correlationId,
-        driverId,
-        rideId: ride.id,
-      });
-
-      // Check if WebSocket server is available
+      // ✅ FIXED: Check if WebSocket server is available
       if (!this.socketServer) {
         this.logger.error("WebSocket server not available", {
           correlationId,
@@ -1524,10 +1622,16 @@ export class RidesService {
         return;
       }
 
-      // Create a unique response channel for this ride
+      this.logger.info("Sending ride request to driver", {
+        correlationId,
+        driverId,
+        rideId: ride.id,
+      });
+
+      // Create response channel
       const responseChannel = `ride:${ride.id}:response`;
 
-      // Set up one-time listener for driver response
+      // Set up response listener
       const handleDriverResponse = (response: {
         rideId: number;
         driverId: number;
@@ -1541,23 +1645,23 @@ export class RidesService {
         ) {
           acknowledged = true;
           cleanup();
+          this.socketServer.off(responseChannel, handleDriverResponse);
 
           this.logger.info("Received driver response", {
             correlationId,
             driverId,
             rideId: ride.id,
             accepted: response.accepted,
-            responseTime: Date.now() - response.timestamp,
           });
 
           resolve({ success: response.accepted, acknowledged: true });
         }
       };
 
-      // Listen for driver response
+      // Listen for response
       this.socketServer.on(responseChannel, handleDriverResponse);
 
-      // Send ride request to driver's room
+      // Send request to driver
       this.socketServer.to(`driver:${driverId}`).emit("ride:request", {
         rideId: ride.id,
         correlationId,
@@ -1575,16 +1679,8 @@ export class RidesService {
         tariff: ride.tariff_type,
         clientId: clientId,
         timestamp: Date.now(),
-        responseChannel, // Tell driver which channel to respond on
-        expiresAt: Date.now() + timeoutMs,
-      });
-
-      this.logger.info("Ride request sent to driver", {
-        correlationId,
-        driverId,
-        rideId: ride.id,
-        room: `driver:${driverId}`,
         responseChannel,
+        expiresAt: Date.now() + timeoutMs,
       });
     });
   }
@@ -2875,5 +2971,29 @@ export class RidesService {
       where: { id },
       relations: ["client", "driver"],
     });
+  }
+
+  private async debugDriverStatus(driverId: number, correlationId: string) {
+    try {
+      const statusKey = `driver:${driverId}:status`;
+      const status = await redisClient.get(statusKey);
+
+      console.log(`[DEBUG] Driver ${driverId} status debug:`, {
+        statusKey,
+        rawStatus: status,
+        statusType: typeof status,
+        statusLength: status?.length,
+        isOnline: status === "online",
+        correlationId,
+      });
+
+      return status;
+    } catch (error) {
+      this.logger.error(`Status debug failed for driver ${driverId}:`, {
+        error: error.message,
+        correlationId,
+      });
+      return null;
+    }
   }
 }

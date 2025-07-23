@@ -97,9 +97,29 @@ export class LocationGateway
 
   // === CONNECTION MANAGEMENT ===
 
-  async handleConnection(client: Socket) {
-    // this.logger.log(`New connection attempt from client ${client.id}`);
+  // async handleConnection(client: Socket) {
+  //   // this.logger.log(`New connection attempt from client ${client.id}`);
 
+  //   this.logger.log(
+  //     `--- handleConnection: New client trying to connect: ${client.id}`
+  //   );
+
+  //   try {
+  //     const user = await this.authenticateClient(client);
+  //     if (!user) {
+  //       return; // Authentication failed, client already disconnected
+  //     }
+
+  //     client.data.user = user;
+  //     this.logger.log(`Client authenticated: ${user.userId} (${user.role})`);
+
+  //     client.emit("auth:success", {
+  //       message: "Successfully authenticated",
+  //       userId: user.userId,
+  //       role: user.role,
+  //     });
+
+  async handleConnection(client: Socket) {
     this.logger.log(
       `--- handleConnection: New client trying to connect: ${client.id}`
     );
@@ -107,22 +127,26 @@ export class LocationGateway
     try {
       const user = await this.authenticateClient(client);
       if (!user) {
-        return; // Authentication failed, client already disconnected
+        return;
       }
 
       client.data.user = user;
       this.logger.log(`Client authenticated: ${user.userId} (${user.role})`);
+
+      // ✅ FIXED: Ensure driver joins their room for ride requests
+      if (user.role === "driver") {
+        const driverRoom = `driver:${user.userId}`;
+        client.join(driverRoom);
+        await this.initializeDriver(user.userId);
+
+        this.logger.log(`Driver ${user.userId} joined room: ${driverRoom}`);
+      }
 
       client.emit("auth:success", {
         message: "Successfully authenticated",
         userId: user.userId,
         role: user.role,
       });
-
-      // Automatically set driver to "online" upon connection
-      if (user.role === "driver") {
-        await this.initializeDriver(user.userId);
-      }
     } catch (error) {
       this.logger.error(`Connection failed: ${error.message}`);
       client.emit("auth:error", { message: "Authentication failed" });
@@ -140,6 +164,8 @@ export class LocationGateway
   }
 
   // === AUTHENTICATION ===
+
+  // Add this debug logging to your authenticateClient method in LocationGateway:
 
   private async authenticateClient(
     client: Socket
@@ -172,12 +198,25 @@ export class LocationGateway
         secretKey
       );
 
+      // 🔍 ADD THIS DEBUG LOGGING
+      console.log(
+        "[DEBUG] LocationGateway JWT Payload:",
+        JSON.stringify(payload, null, 2)
+      );
+      console.log("[DEBUG] payload.sub:", payload.sub, typeof payload.sub);
+      console.log("[DEBUG] payload.id:", payload.id, typeof payload.id);
+      console.log("[DEBUG] payload.role:", payload.role, typeof payload.role);
+
       if (!payload.sub || !payload.role) {
         throw new Error("Invalid token payload: missing sub or role");
       }
 
+      // 🔍 ENSURE IT'S A STRING
+      const userId = payload.sub.toString();
+      console.log("[DEBUG] Final userId:", userId, typeof userId);
+
       return {
-        userId: payload.sub,
+        userId: userId,
         role: payload.role,
       };
     } catch (error) {
@@ -201,6 +240,29 @@ export class LocationGateway
       ((client.handshake.headers?.role ||
         client.handshake.headers?.["x-role"]) as ValidRoles) || null;
 
+    // 🔍 DETAILED DEBUG
+    console.log("=== WEBSOCKET CONNECTION DEBUG ===");
+    console.log(
+      "[DEBUG] All headers:",
+      JSON.stringify(client.handshake.headers, null, 2)
+    );
+    console.log("[DEBUG] Raw auth header:", authHeader);
+    console.log(
+      "[DEBUG] Extracted token (first 50 chars):",
+      token?.substring(0, 50) + "..."
+    );
+    console.log("[DEBUG] Full token length:", token?.length);
+    console.log("[DEBUG] Role header:", role);
+
+    // Compare tokens
+    const correctTokenStart =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywicGhvbmVfbnVtYmVy";
+    console.log(
+      "[DEBUG] Token starts with correct sequence?",
+      token?.startsWith(correctTokenStart)
+    );
+    console.log("==========================================");
+
     return { token, role };
   }
 
@@ -217,11 +279,93 @@ export class LocationGateway
 
   // === DRIVER MANAGEMENT ===
 
+  // Update your initializeDriver method in LocationGateway
+
+  // private async initializeDriver(driverId: string) {
+  //   try {
+  //     // Set driver as online
+  //     await this.setDriverStatus(driverId, "online");
+
+  //     // 🔧 ADD DEFAULT LOCATION FOR TESTING - This is the missing piece!
+  //     await redisClient.geoAdd("drivers:geo", {
+  //       longitude: 69.240562,
+  //       latitude: 41.311081,
+  //       member: driverId.toString(),
+  //     });
+
+  //     // Also store detailed location data
+  //     const locationData = {
+  //       lat: 41.311081,
+  //       lng: 69.240562,
+  //       timestamp: Date.now(),
+  //       rideId: null,
+  //     };
+
+  //     await redisClient.set(
+  //       `driver:${driverId}:location`,
+  //       JSON.stringify(locationData),
+  //       { EX: 3600 }
+  //     );
+
+  //     this.logger.log(
+  //       `Driver ${driverId} connected, is online, and location set.`
+  //     );
+
+  //     // Verify the location was added
+  //     const verification = await redisClient.geoPos("drivers:geo", driverId);
+  //     console.log(
+  //       `[DEBUG] Driver ${driverId} location verification:`,
+  //       verification
+  //     );
+  //   } catch (error) {
+  //     this.logger.error(
+  //       `Failed to initialize driver ${driverId}: ${error.message}`
+  //     );
+  //   }
+  // }
+
   private async initializeDriver(driverId: string) {
     try {
-      // Set driver as online automatically on connection
+      // ✅ Set driver as online with explicit string value
       await this.setDriverStatus(driverId, "online");
-      this.logger.log(`Driver ${driverId} connected and is online.`);
+
+      // Add default location for testing
+      await redisClient.geoAdd("drivers:geo", {
+        longitude: 69.240562,
+        latitude: 41.311081,
+        member: driverId.toString(),
+      });
+
+      // Store detailed location data
+      const locationData = {
+        lat: 41.311081,
+        lng: 69.240562,
+        timestamp: Date.now(),
+        rideId: null,
+      };
+
+      await redisClient.set(
+        `driver:${driverId}:location`,
+        JSON.stringify(locationData),
+        { EX: 3600 }
+      );
+
+      this.logger.log(
+        `Driver ${driverId} connected, is online, and location set.`
+      );
+
+      // Verify the location was added
+      const verification = await redisClient.geoPos("drivers:geo", driverId);
+      console.log(
+        `[DEBUG] Driver ${driverId} location verification:`,
+        verification
+      );
+
+      // ✅ VERIFY STATUS AFTER INITIALIZATION
+      const statusCheck = await redisClient.get(`driver:${driverId}:status`);
+      console.log(
+        `[DEBUG] Driver ${driverId} final status check: "${statusCheck}"`
+      );
     } catch (error) {
       this.logger.error(
         `Failed to initialize driver ${driverId}: ${error.message}`
@@ -606,13 +750,21 @@ export class LocationGateway
     status: "online" | "offline"
   ) {
     try {
+      // ✅ FIXED: Ensure we store the exact string value
+      console.log(`[DEBUG] Setting driver ${driverId} status to: "${status}"`);
+
       await redisClient.set(`driver:${driverId}:status`, status, { EX: 86400 });
+
+      // Verify the status was set correctly
+      const verifyStatus = await redisClient.get(`driver:${driverId}:status`);
+      console.log(
+        `[DEBUG] Verified driver ${driverId} status is now: "${verifyStatus}"`
+      );
     } catch (error) {
       this.logger.error(`Failed to set driver status: ${error.message}`);
       throw new Error("Failed to update driver status in Redis");
     }
   }
-
   // private async removeDriverLocation(driverId: string) {
   //   try {
   //     const pipeline = redisClient.multi();

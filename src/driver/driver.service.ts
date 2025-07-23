@@ -890,29 +890,6 @@ export class DriverService {
     }
   }
 
-  async goOnline(
-    driverId: number,
-    lat: number,
-    lng: number
-  ): Promise<{ message: string }> {
-    try {
-      await redisClient.set(`driver:${driverId}:status`, "online");
-      await redisClient.geoAdd("drivers:location", {
-        longitude: lng,
-        latitude: lat,
-        member: driverId.toString(),
-      });
-      await redisClient.set(
-        `driver:${driverId}:location`,
-        JSON.stringify({ lat, lng })
-      );
-      return { message: "Driver is now online and location updated" };
-    } catch (error) {
-      console.error("Go online error:", error);
-      throw new InternalServerErrorException("Failed to set driver online");
-    }
-  }
-
   async updateLocation(
     driverId: number,
     lat: number,
@@ -1084,6 +1061,83 @@ export class DriverService {
       throw new InternalServerErrorException(
         "An error occurred while fetching full driver details."
       );
+    }
+  }
+
+  async goOnline(
+    driverId: number,
+    lat: number,
+    lng: number
+  ): Promise<{ message: string }> {
+    const driver = await this.drivers.findOneBy({ id: driverId });
+    if (!driver) {
+      throw new NotFoundException(`Driver with ID ${driverId} not found`);
+    }
+
+    try {
+      await Promise.all([
+        // 1. Update PostgreSQL database
+        this.drivers.update(driverId, { is_online: true }),
+
+        // 2. Update Redis real-time status using a raw string
+        redisClient.set(`driver:${driverId}:status`, "online"),
+
+        // 3. Add/Update driver in the geospatial index using a raw string
+        redisClient.geoAdd("drivers:geo", {
+          longitude: lng,
+          latitude: lat,
+          member: driverId.toString(),
+        }),
+
+        // 4. Store the simple {lat, lng} object for quick lookups if needed
+        redisClient.set(
+          `driver:${driverId}:location`,
+          JSON.stringify({ lat, lng })
+        ),
+      ]);
+
+      return { message: "Driver is now online and location updated" };
+    } catch (error) {
+      console.error(`Failed to set driver ${driverId} online:`, error);
+      await this.goOffline(driverId).catch((cleanupError) =>
+        console.error(
+          `Failed to run cleanup for driver ${driverId}:`,
+          cleanupError
+        )
+      );
+      throw new InternalServerErrorException("Failed to set driver online");
+    }
+  }
+
+  /**
+   * Sets a driver's status to 'offline' in both PostgreSQL and Redis,
+   * and removes them from the Redis geospatial index.
+   */
+  async goOffline(driverId: number): Promise<{ message: string }> {
+    const driver = await this.drivers.findOneBy({ id: driverId });
+    if (!driver) {
+      throw new NotFoundException(`Driver with ID ${driverId} not found`);
+    }
+
+    try {
+      await Promise.all([
+        // 1. Update PostgreSQL database
+        this.drivers.update(driverId, { is_online: false }),
+
+        // 2. Update Redis real-time status using a raw string
+        redisClient.set(`driver:${driverId}:status`, "offline"),
+
+        // 3. Remove from Redis geospatial index to stop ride offers
+        redisClient.zRem("drivers:geo", driverId.toString()),
+
+        // 4. Remove the simple location key
+        redisClient.del(`driver:${driverId}:location`),
+      ]);
+
+      return { message: "Driver is now offline" };
+    } catch (error) {
+      console.error(`Failed to set driver ${driverId} offline:`, error);
+      throw new InternalServerErrorException("Failed to set driver offline");
     }
   }
 }
