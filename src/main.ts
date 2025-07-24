@@ -19,6 +19,9 @@ async function start() {
     await redisIoAdapter.connectToRedis();
     app.useWebSocketAdapter(redisIoAdapter);
 
+
+
+
     app.use(cookieParser());
     app.setGlobalPrefix("api");
     app.useGlobalPipes(new ValidationPipe({ whitelist: true }));

@@ -14,7 +14,6 @@ import {
   QueryRunner,
   MoreThanOrEqual,
   ILike,
-  
 } from "typeorm";
 import { Server } from "socket.io";
 import { validate } from "class-validator";
@@ -48,8 +47,7 @@ import { TariffType } from "./enums/ride.enums";
 import { Car } from "../car/entities/car.entity";
 import { Tariff } from "../tariff/entities/tariff.entity";
 import { LocationGateway } from "../location/location.gateway";
-
-
+import { getSocketInstance } from "../socket/socket.provider";
 
 // Configuration interface with validation
 interface RideServiceConfig {
@@ -106,7 +104,6 @@ const MAX_RADIUS_BY_TARIFF: Record<TariffType, number> = {
 function getMaxSearchRadius(tariff: TariffType): number {
   return MAX_RADIUS_BY_TARIFF[tariff] ?? 2000;
 }
-
 
 class RedisCircuitBreaker {
   private failureCount = 0;
@@ -208,7 +205,6 @@ class RedisCircuitBreaker {
   }
 }
 
-
 @Injectable()
 export class RidesService {
   private readonly circuitBreaker: RedisCircuitBreaker;
@@ -225,14 +221,31 @@ export class RidesService {
     @InjectRepository(Car)
     private readonly carRepository: Repository<Car>,
     @Inject(SOCKET_IO_SERVER) private readonly socketServer: Server,
+
     private readonly fareCalculator: FareCalculationService,
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService
     // @Inject(forwardRef(() => LocationGateway))
     // private readonly locationGateway: LocationGateway
   ) {
+    console.log("🏗️ RidesService constructor called");
+    console.log("📡 WebSocket server injection result:", {
+      serverExists: !!this.socketServer,
+      serverType: this.socketServer?.constructor?.name,
+      serverMethods: this.socketServer
+        ? Object.getOwnPropertyNames(Object.getPrototypeOf(this.socketServer))
+        : "N/A",
+    });
+
     if (!this.socketServer) {
-      this.logger.warn("WebSocket server not available during initialization");
+      this.logger.error(
+        "❌ WebSocket server not available during RidesService initialization"
+      );
+      // Don't throw error, just log it
+    } else {
+      console.log(
+        "✅ WebSocket server successfully injected into RidesService"
+      );
     }
     // Load and validate configuration
     this.config = this.loadConfiguration();
@@ -257,8 +270,11 @@ export class RidesService {
 
   private loadConfiguration(): RideServiceConfig {
     return {
-      lockTtlMs: this.configService.get<number>("RIDE_LOCK_TTL_MS", 10000),
-      ackTimeoutMs: this.configService.get<number>("RIDE_ACK_TIMEOUT_MS", 5000),
+      lockTtlMs: this.configService.get<number>("RIDE_LOCK_TTL_MS", 300000), // 5 minutes
+      ackTimeoutMs: this.configService.get<number>(
+        "RIDE_ACK_TIMEOUT_MS",
+        300000
+      ), // 5 minutes instead of 5000ms
       rideStatusTtl: this.configService.get<number>("RIDE_STATUS_TTL", 3600),
       driverRideTtl: this.configService.get<number>("DRIVER_RIDE_TTL", 1800),
       maxRetries: this.configService.get<number>("RIDE_MAX_RETRIES", 3),
@@ -1134,45 +1150,23 @@ export class RidesService {
         redisResultsType: typeof redisResults,
       });
 
-      // RidesService.ts - Fixed Redis pipeline result processing
-
-      // In the getNearestAvailableDriver method, replace the pipeline processing section:
-
-      // ❌ OLD CODE (around line with pipeline processing):
-      // const status = redisResults?.[baseIndex]?.[1] as string | null;
-      // const currentRide = redisResults?.[baseIndex + 1]?.[1] as string | null;
-      // const acceptedStr = redisResults?.[baseIndex + 2]?.[1] as string | null;
-      // const totalStr = redisResults?.[baseIndex + 3]?.[1] as string | null;
-
       // ✅ NEW FIXED CODE:
+      // Replace the pipeline processing section (starting around line 614)
       for (let i = 0; i < finalCandidateIds.length; i++) {
         const driverId = finalCandidateIds[i];
         const baseIndex = i * 4;
 
-        // 🔧 FIXED: Redis pipeline returns [error, result] pairs
-        // Access the result value directly, not [1]
-        const statusResult = redisResults?.[baseIndex];
-        const rideResult = redisResults?.[baseIndex + 1];
-        const acceptedResult = redisResults?.[baseIndex + 2];
-        const totalResult = redisResults?.[baseIndex + 3];
+        // Access the raw results directly
+        const status = redisResults?.[baseIndex] as string | null;
+        const currentRide = redisResults?.[baseIndex + 1] as string | null;
+        const acceptedStr = redisResults?.[baseIndex + 2] as string | null;
+        const totalStr = redisResults?.[baseIndex + 3] as string | null;
 
-        // Extract the actual values
-        const status = statusResult?.[1] as string | null;
-        const currentRide = rideResult?.[1] as string | null;
-        const acceptedStr = acceptedResult?.[1] as string | null;
-        const totalStr = totalResult?.[1] as string | null;
-
-        // 🔍 ENHANCED DEBUG - Show both raw result and extracted value
+        // Enhanced debug logging
         console.log(`[DEBUG] Driver ${driverId} pipeline result analysis:`, {
           driverId,
           baseIndex,
           rawResults: {
-            statusResult,
-            rideResult,
-            acceptedResult,
-            totalResult,
-          },
-          extractedValues: {
             status,
             currentRide,
             acceptedStr,
@@ -1224,7 +1218,6 @@ export class RidesService {
           acceptanceRate,
         });
       }
-
       // Alternative approach - if the above doesn't work, try this simpler method:
       // Replace the pipeline section with individual Redis calls for debugging:
 
@@ -1609,23 +1602,79 @@ export class RidesService {
         }
       }, timeoutMs);
 
-      // ✅ FIXED: Check if WebSocket server is available
-      if (!this.socketServer) {
-        this.logger.error("WebSocket server not available", {
+      // ✅ ENHANCED: Try multiple approaches to get socket server
+      let currentSocketServer = this.socketServer;
+
+      console.log("🔍 [RIDES SERVICE] Socket server check:", {
+        injectedServerExists: !!this.socketServer,
+        injectedServerType: this.socketServer?.constructor?.name,
+        correlationId,
+        timestamp: new Date().toISOString(),
+      });
+
+      // If injected server is null, try dynamic resolution
+      if (!currentSocketServer) {
+        this.logger.warn(
+          "⚠️ Injected socket server is null, trying dynamic resolution",
+          {
+            correlationId,
+          }
+        );
+        const dynamicInstance = getSocketInstance();
+        if (dynamicInstance) {
+          currentSocketServer = dynamicInstance;
+        }
+        console.log("🔍 [RIDES SERVICE] Dynamic resolution result:", {
+          dynamicServerExists: !!currentSocketServer,
+          dynamicServerType: currentSocketServer?.constructor?.name,
           correlationId,
-          driverId,
-          rideId: ride.id,
         });
+      }
+
+      // Final check with detailed logging
+      if (!currentSocketServer) {
+        console.error(
+          "❌ [RIDES SERVICE] WebSocket server completely unavailable",
+          {
+            correlationId,
+            driverId,
+            rideId: ride.id,
+            injectedServer: !!this.socketServer,
+            dynamicServer: !!getSocketInstance(),
+            timestamp: new Date().toISOString(),
+          }
+        );
+
+        this.logger.error(
+          "WebSocket server not available - cannot send ride request",
+          {
+            correlationId,
+            driverId,
+            rideId: ride.id,
+          }
+        );
+
         cleanup();
         acknowledged = true;
         resolve({ success: false, acknowledged: false });
         return;
       }
 
+      console.log("✅ [RIDES SERVICE] Using WebSocket server:", {
+        serverType: currentSocketServer.constructor.name,
+        serverMethods: Object.getOwnPropertyNames(
+          Object.getPrototypeOf(currentSocketServer)
+        ).slice(0, 10),
+        correlationId,
+        driverId,
+        rideId: ride.id,
+      });
+
       this.logger.info("Sending ride request to driver", {
         correlationId,
         driverId,
         rideId: ride.id,
+        serverAvailable: !!currentSocketServer,
       });
 
       // Create response channel
@@ -1638,6 +1687,13 @@ export class RidesService {
         accepted: boolean;
         timestamp: number;
       }) => {
+        console.log("📥 [RIDES SERVICE] Received driver response:", {
+          response,
+          expectedRideId: ride.id,
+          expectedDriverId: driverId,
+          correlationId,
+        });
+
         if (
           response.rideId === ride.id &&
           response.driverId === driverId &&
@@ -1645,7 +1701,7 @@ export class RidesService {
         ) {
           acknowledged = true;
           cleanup();
-          this.socketServer.off(responseChannel, handleDriverResponse);
+          currentSocketServer.off(responseChannel, handleDriverResponse);
 
           this.logger.info("Received driver response", {
             correlationId,
@@ -1659,10 +1715,10 @@ export class RidesService {
       };
 
       // Listen for response
-      this.socketServer.on(responseChannel, handleDriverResponse);
+      currentSocketServer.on(responseChannel, handleDriverResponse);
 
       // Send request to driver
-      this.socketServer.to(`driver:${driverId}`).emit("ride:request", {
+      const rideRequestData = {
         rideId: ride.id,
         correlationId,
         pickup: {
@@ -1681,7 +1737,48 @@ export class RidesService {
         timestamp: Date.now(),
         responseChannel,
         expiresAt: Date.now() + timeoutMs,
+      };
+
+      console.log("📤 [RIDES SERVICE] Emitting ride request:", {
+        room: `driver:${driverId}`,
+        event: "ride:request",
+        rideId: ride.id,
+        correlationId,
+        timestamp: new Date().toISOString(),
       });
+
+      try {
+        currentSocketServer
+          .to(`driver:${driverId}`)
+          .emit("ride:request", rideRequestData);
+
+        console.log("✅ [RIDES SERVICE] Ride request sent successfully", {
+          correlationId,
+          driverId,
+          rideId: ride.id,
+          room: `driver:${driverId}`,
+          responseChannel,
+        });
+
+        this.logger.info("Ride request sent to driver", {
+          correlationId,
+          driverId,
+          rideId: ride.id,
+          room: `driver:${driverId}`,
+          responseChannel,
+        });
+      } catch (emitError) {
+        console.error("❌ [RIDES SERVICE] Failed to emit ride request:", {
+          error: emitError.message,
+          correlationId,
+          driverId,
+          rideId: ride.id,
+        });
+
+        cleanup();
+        acknowledged = true;
+        resolve({ success: false, acknowledged: false });
+      }
     });
   }
 
@@ -2995,5 +3092,43 @@ export class RidesService {
       });
       return null;
     }
+  }
+
+  async testWebSocketConnection(): Promise<{
+    available: boolean;
+    serverType: string;
+    canEmit: boolean;
+    injectedServer: boolean;
+    dynamicServer: boolean;
+  }> {
+    const injectedServer = !!this.socketServer;
+    const dynamicServer = !!getSocketInstance();
+    const server = this.socketServer || getSocketInstance();
+
+    let canEmit = false;
+    if (server) {
+      try {
+        server.emit("test:connection", {
+          timestamp: Date.now(),
+          source: "RidesService.testWebSocketConnection",
+        });
+        canEmit = true;
+        console.log("✅ [TEST] WebSocket emit test successful");
+      } catch (error) {
+        console.error("❌ [TEST] WebSocket emit test failed:", error);
+        this.logger.error("WebSocket emit test failed:", error);
+      }
+    }
+
+    const result = {
+      available: !!server,
+      serverType: server?.constructor?.name || "N/A",
+      canEmit,
+      injectedServer,
+      dynamicServer,
+    };
+
+    console.log("🧪 [TEST] WebSocket connection test result:", result);
+    return result;
   }
 }

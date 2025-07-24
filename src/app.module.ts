@@ -108,6 +108,7 @@ import { RideChatModule } from "./ride-chat/ride-chat.module";
       ],
       synchronize: true,
     }),
+    SocketModule,
     AuthModule,
     DriverModule,
     AdminModule,

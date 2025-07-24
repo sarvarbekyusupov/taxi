@@ -18,7 +18,7 @@ import { Roles } from "../common/decorators/role.decorator";
 import { WsRoleGuard } from "../auth/ws.role.guard";
 import { WsAuthGuard } from "../auth/ws-auth.guard";
 import { WsException } from "@nestjs/websockets";
-import { setSocketInstance } from "../socket/socket.provider";
+import { getSocketInstance, setSocketInstance } from "../socket/socket.provider";
 // --- Interfaces ---
 interface DriverLocation {
   driverId: string;
@@ -89,10 +89,28 @@ export class LocationGateway
   ) {}
 
   afterInit(server: Server) {
-    this.logger.log("LocationGateway initialized (Manual Online/Offline Mode)");
+    console.log("🚀 [LOCATION GATEWAY] LocationGateway afterInit called", {
+      serverExists: !!server,
+      serverType: server?.constructor?.name,
+      timestamp: new Date().toISOString(),
+    });
 
+    // ✅ CRITICAL: Set the server instance IMMEDIATELY
     setSocketInstance(server);
-    this.logger.log("✅ Socket server instance shared with provider");
+
+    // ✅ VERIFY the instance was set correctly
+    setTimeout(() => {
+      const verifyInstance = getSocketInstance();
+      console.log("🔍 [LOCATION GATEWAY] Delayed verification check:", {
+        instanceExists: !!verifyInstance,
+        sameInstance: verifyInstance === server,
+        timestamp: new Date().toISOString(),
+      });
+    }, 1000); // Check after 1 second
+
+    this.logger.log(
+      "✅ LocationGateway initialized and socket instance shared"
+    );
   }
 
   // === CONNECTION MANAGEMENT ===
@@ -1314,4 +1332,7 @@ export class LocationGateway
       room: clientRoom,
     };
   }
+
+
+  
 }

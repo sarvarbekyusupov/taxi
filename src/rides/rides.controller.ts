@@ -92,8 +92,14 @@ export class RidesController {
   @ApiInternalServerErrorResponse({
     description: "Unexpected internal server error during ride creation",
   })
-  @ApiHeader({ name: 'Idempotency-Key', description: 'Idempotency key to prevent duplicate ride creation' })
-  async create(@Body() createRideDto: CreateRideDto, @Headers('Idempotency-Key') idempotencyKey: string) {
+  @ApiHeader({
+    name: "Idempotency-Key",
+    description: "Idempotency key to prevent duplicate ride creation",
+  })
+  async create(
+    @Body() createRideDto: CreateRideDto,
+    @Headers("Idempotency-Key") idempotencyKey: string
+  ) {
     return this.ridesService.create(createRideDto, idempotencyKey);
   }
 
@@ -504,7 +510,11 @@ export class RidesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: "Refund a ride" })
   @ApiParam({ name: "id", type: Number })
-  @ApiBody({ schema: { properties: { amount: { type: "number" }, reason: { type: "string" } } } })
+  @ApiBody({
+    schema: {
+      properties: { amount: { type: "number" }, reason: { type: "string" } },
+    },
+  })
   async handleRefund(
     @Param("id", ParseIntPipe) id: number,
     @Body("amount") amount: number,
@@ -520,7 +530,10 @@ export class RidesController {
   @ApiOperation({ summary: "Reassign a driver to a ride" })
   @ApiParam({ name: "id", type: Number })
   @ApiBody({ schema: { properties: { reason: { type: "string" } } } })
-  async reassignDriver(@Param("id", ParseIntPipe) id: number, @Body("reason") reason: string) {
+  async reassignDriver(
+    @Param("id", ParseIntPipe) id: number,
+    @Body("reason") reason: string
+  ) {
     return this.ridesService.reassignDriver(id, reason);
   }
 
@@ -530,7 +543,11 @@ export class RidesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: "Update driver location" })
   @ApiParam({ name: "id", type: Number })
-  @ApiBody({ schema: { properties: { lat: { type: "number" }, lng: { type: "number" } } } })
+  @ApiBody({
+    schema: {
+      properties: { lat: { type: "number" }, lng: { type: "number" } },
+    },
+  })
   async updateDriverLocation(
     @Param("id", ParseIntPipe) id: number,
     @Body("lat") lat: number,
@@ -545,7 +562,9 @@ export class RidesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: "Schedule a ride" })
   async scheduleRide(@Body() createScheduledRideDto: any) {
-    return this.ridesService.addSupportForScheduledRides(createScheduledRideDto);
+    return this.ridesService.addSupportForScheduledRides(
+      createScheduledRideDto
+    );
   }
 
   @Get("performance")
@@ -555,6 +574,11 @@ export class RidesController {
   @ApiOperation({ summary: "Get system performance metrics" })
   async getSystemPerformanceMetrics() {
     return this.ridesService.getSystemPerformanceMetrics();
+  }
+
+  @Get("test-websocket")
+  async testWebSocket() {
+    return await this.ridesService.testWebSocketConnection();
   }
 
   // @Get("fares/estimate")
