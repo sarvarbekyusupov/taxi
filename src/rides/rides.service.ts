@@ -228,6 +228,9 @@ export class RidesService {
     // @Inject(forwardRef(() => LocationGateway))
     // private readonly locationGateway: LocationGateway
   ) {
+    setTimeout(() => {
+      this.initializeResponseHandlers();
+    }, 1000);
     console.log("🏗️ RidesService constructor called");
     console.log("📡 WebSocket server injection result:", {
       serverExists: !!this.socketServer,
@@ -1397,84 +1400,13 @@ export class RidesService {
   // ): Promise<{ success: boolean; acknowledged: boolean }> {
   //   return new Promise((resolve) => {
   //     let acknowledged = false;
-
-  //     const timeout = setTimeout(() => {
-  //       if (!acknowledged) {
-  //         this.logger.warn("Driver acknowledgment timeout", {
-  //           correlationId,
-  //           driverId,
-  //           rideId: ride.id,
-  //           timeoutMs: this.config.ackTimeoutMs,
-  //         });
-  //         resolve({ success: false, acknowledged: false });
-  //       }
-  //     }, this.config.ackTimeoutMs);
-
-  //     this.logger.info("Sending ride request to driver", {
-  //       correlationId,
-  //       driverId,
-  //       rideId: ride.id,
-  //     });
-
-  //     this.socketServer.emit(
-  //       `rideRequest:${driverId}`,
-  //       {
-  //         rideId: ride.id,
-  //         correlationId,
-  //         pickup: {
-  //           lat: ride.pickup_latitude,
-  //           lng: ride.pickup_longitude,
-  //           address: ride.pickup_address,
-  //         },
-  //         destination: {
-  //           lat: ride.destination_latitude,
-  //           lng: ride.destination_longitude,
-  //           address: ride.destination_address,
-  //         },
-  //         estimatedFare: ride.estimated_fare,
-  //         tariff: ride.tariff_type,
-  //         clientId: clientId,
-  //         timestamp: new Date().toISOString(),
-  //       },
-  //       (ack: { success: boolean } | undefined) => {
-  //         acknowledged = true;
-  //         clearTimeout(timeout);
-
-  //         const result = ack || { success: false };
-
-  //         this.logger.info("Received driver acknowledgment", {
-  //           correlationId,
-  //           driverId,
-  //           rideId: ride.id,
-  //           success: result.success,
-  //         });
-
-  //         resolve({ ...result, acknowledged: true });
-  //       }
-  //     );
-  //   });
-  // }
-
-  // Rate limiting helper
-
-  // Minimal fix: Just add a null check to your existing sendRideRequestWithTimeout:
-
-  // private async sendRideRequestWithTimeout(
-  //   driverId: number,
-  //   ride: Ride,
-  //   clientId: number,
-  //   correlationId: string
-  // ): Promise<{ success: boolean; acknowledged: boolean }> {
-  //   return new Promise((resolve) => {
-  //     let acknowledged = false;
   //     let responseTimeout: NodeJS.Timeout;
 
   //     const cleanup = () => {
   //       if (responseTimeout) clearTimeout(responseTimeout);
   //     };
 
-  //     // Set up timeout
-  //     const timeoutMs = this.config.ackTimeoutMs || 30000; // 30 seconds
+  //     const timeoutMs = this.config.ackTimeoutMs || 30000;
   //     responseTimeout = setTimeout(() => {
   //       if (!acknowledged) {
   //         acknowledged = true;
@@ -1489,35 +1421,98 @@ export class RidesService {
   //       }
   //     }, timeoutMs);
 
-  //     this.logger.info("Sending ride request to driver", {
+  //     // ✅ ENHANCED: Try multiple approaches to get socket server
+  //     let currentSocketServer = this.socketServer;
+
+  //     console.log("🔍 [RIDES SERVICE] Socket server check:", {
+  //       injectedServerExists: !!this.socketServer,
+  //       injectedServerType: this.socketServer?.constructor?.name,
   //       correlationId,
-  //       driverId,
-  //       rideId: ride.id,
+  //       timestamp: new Date().toISOString(),
   //     });
 
-  //     // Check if WebSocket server is available
-  //     if (!this.socketServer) {
-  //       this.logger.error("WebSocket server not available", {
+  //     // If injected server is null, try dynamic resolution
+  //     if (!currentSocketServer) {
+  //       this.logger.warn(
+  //         "⚠️ Injected socket server is null, trying dynamic resolution",
+  //         {
+  //           correlationId,
+  //         }
+  //       );
+  //       const dynamicInstance = getSocketInstance();
+  //       if (dynamicInstance) {
+  //         currentSocketServer = dynamicInstance;
+  //       }
+  //       console.log("🔍 [RIDES SERVICE] Dynamic resolution result:", {
+  //         dynamicServerExists: !!currentSocketServer,
+  //         dynamicServerType: currentSocketServer?.constructor?.name,
   //         correlationId,
-  //         driverId,
-  //         rideId: ride.id,
   //       });
+  //     }
+
+  //     // Final check with detailed logging
+  //     if (!currentSocketServer) {
+  //       console.error(
+  //         "❌ [RIDES SERVICE] WebSocket server completely unavailable",
+  //         {
+  //           correlationId,
+  //           driverId,
+  //           rideId: ride.id,
+  //           injectedServer: !!this.socketServer,
+  //           dynamicServer: !!getSocketInstance(),
+  //           timestamp: new Date().toISOString(),
+  //         }
+  //       );
+
+  //       this.logger.error(
+  //         "WebSocket server not available - cannot send ride request",
+  //         {
+  //           correlationId,
+  //           driverId,
+  //           rideId: ride.id,
+  //         }
+  //       );
+
   //       cleanup();
   //       acknowledged = true;
   //       resolve({ success: false, acknowledged: false });
   //       return;
   //     }
 
-  //     // Create a unique response channel for this ride
+  //     console.log("✅ [RIDES SERVICE] Using WebSocket server:", {
+  //       serverType: currentSocketServer.constructor.name,
+  //       serverMethods: Object.getOwnPropertyNames(
+  //         Object.getPrototypeOf(currentSocketServer)
+  //       ).slice(0, 10),
+  //       correlationId,
+  //       driverId,
+  //       rideId: ride.id,
+  //     });
+
+  //     this.logger.info("Sending ride request to driver", {
+  //       correlationId,
+  //       driverId,
+  //       rideId: ride.id,
+  //       serverAvailable: !!currentSocketServer,
+  //     });
+
+  //     // Create response channel
   //     const responseChannel = `ride:${ride.id}:response`;
 
-  //     // Set up one-time listener for driver response
+  //     // Set up response listener
   //     const handleDriverResponse = (response: {
   //       rideId: number;
   //       driverId: number;
   //       accepted: boolean;
   //       timestamp: number;
   //     }) => {
+  //       console.log("📥 [RIDES SERVICE] Received driver response:", {
+  //         response,
+  //         expectedRideId: ride.id,
+  //         expectedDriverId: driverId,
+  //         correlationId,
+  //       });
+
   //       if (
   //         response.rideId === ride.id &&
   //         response.driverId === driverId &&
@@ -1525,24 +1520,24 @@ export class RidesService {
   //       ) {
   //         acknowledged = true;
   //         cleanup();
+  //         currentSocketServer.off(responseChannel, handleDriverResponse);
 
   //         this.logger.info("Received driver response", {
   //           correlationId,
   //           driverId,
   //           rideId: ride.id,
   //           accepted: response.accepted,
-  //           responseTime: Date.now() - response.timestamp,
   //         });
 
   //         resolve({ success: response.accepted, acknowledged: true });
   //       }
   //     };
 
-  //     // Listen for driver response
-  //     this.socketServer.on(responseChannel, handleDriverResponse);
+  //     // Listen for response
+  //     currentSocketServer.on(responseChannel, handleDriverResponse);
 
-  //     // Send ride request to driver's room
-  //     this.socketServer.to(`driver:${driverId}`).emit("ride:request", {
+  //     // Send request to driver
+  //     const rideRequestData = {
   //       rideId: ride.id,
   //       correlationId,
   //       pickup: {
@@ -1559,19 +1554,56 @@ export class RidesService {
   //       tariff: ride.tariff_type,
   //       clientId: clientId,
   //       timestamp: Date.now(),
-  //       responseChannel, // Tell driver which channel to respond on
+  //       responseChannel,
   //       expiresAt: Date.now() + timeoutMs,
+  //     };
+
+  //     console.log("📤 [RIDES SERVICE] Emitting ride request:", {
+  //       room: `driver:${driverId}`,
+  //       event: "ride:request",
+  //       rideId: ride.id,
+  //       correlationId,
+  //       timestamp: new Date().toISOString(),
   //     });
 
-  //     this.logger.info("Ride request sent to driver", {
-  //       correlationId,
-  //       driverId,
-  //       rideId: ride.id,
-  //       room: `driver:${driverId}`,
-  //       responseChannel,
-  //     });
+  //     try {
+  //       currentSocketServer
+  //         .to(`driver:${driverId}`)
+  //         .emit("ride:request", rideRequestData);
+
+  //       console.log("✅ [RIDES SERVICE] Ride request sent successfully", {
+  //         correlationId,
+  //         driverId,
+  //         rideId: ride.id,
+  //         room: `driver:${driverId}`,
+  //         responseChannel,
+  //       });
+
+  //       this.logger.info("Ride request sent to driver", {
+  //         correlationId,
+  //         driverId,
+  //         rideId: ride.id,
+  //         room: `driver:${driverId}`,
+  //         responseChannel,
+  //       });
+  //     } catch (emitError) {
+  //       console.error("❌ [RIDES SERVICE] Failed to emit ride request:", {
+  //         error: emitError.message,
+  //         correlationId,
+  //         driverId,
+  //         rideId: ride.id,
+  //       });
+
+  //       cleanup();
+  //       acknowledged = true;
+  //       resolve({ success: false, acknowledged: false });
+  //     }
   //   });
   // }
+
+  // Quick fix for your sendRideRequestWithTimeout method
+
+  // SOLUTION 1: Fix the sendRideRequestWithTimeout method in RidesService
 
   private async sendRideRequestWithTimeout(
     driverId: number,
@@ -1582,12 +1614,16 @@ export class RidesService {
     return new Promise((resolve) => {
       let acknowledged = false;
       let responseTimeout: NodeJS.Timeout;
+      let checkInterval: NodeJS.Timeout;
 
       const cleanup = () => {
         if (responseTimeout) clearTimeout(responseTimeout);
+        if (checkInterval) clearInterval(checkInterval);
       };
 
       const timeoutMs = this.config.ackTimeoutMs || 30000;
+
+      // Set timeout
       responseTimeout = setTimeout(() => {
         if (!acknowledged) {
           acknowledged = true;
@@ -1602,122 +1638,82 @@ export class RidesService {
         }
       }, timeoutMs);
 
-      // ✅ ENHANCED: Try multiple approaches to get socket server
+      // Get socket server
       let currentSocketServer = this.socketServer;
-
-      console.log("🔍 [RIDES SERVICE] Socket server check:", {
-        injectedServerExists: !!this.socketServer,
-        injectedServerType: this.socketServer?.constructor?.name,
-        correlationId,
-        timestamp: new Date().toISOString(),
-      });
-
-      // If injected server is null, try dynamic resolution
       if (!currentSocketServer) {
-        this.logger.warn(
-          "⚠️ Injected socket server is null, trying dynamic resolution",
-          {
-            correlationId,
-          }
-        );
         const dynamicInstance = getSocketInstance();
         if (dynamicInstance) {
           currentSocketServer = dynamicInstance;
         }
-        console.log("🔍 [RIDES SERVICE] Dynamic resolution result:", {
-          dynamicServerExists: !!currentSocketServer,
-          dynamicServerType: currentSocketServer?.constructor?.name,
-          correlationId,
-        });
       }
 
-      // Final check with detailed logging
       if (!currentSocketServer) {
-        console.error(
-          "❌ [RIDES SERVICE] WebSocket server completely unavailable",
-          {
-            correlationId,
-            driverId,
-            rideId: ride.id,
-            injectedServer: !!this.socketServer,
-            dynamicServer: !!getSocketInstance(),
-            timestamp: new Date().toISOString(),
-          }
-        );
-
-        this.logger.error(
-          "WebSocket server not available - cannot send ride request",
-          {
-            correlationId,
-            driverId,
-            rideId: ride.id,
-          }
-        );
-
+        this.logger.error("WebSocket server not available", {
+          correlationId,
+          driverId,
+          rideId: ride.id,
+        });
         cleanup();
         acknowledged = true;
         resolve({ success: false, acknowledged: false });
         return;
       }
 
-      console.log("✅ [RIDES SERVICE] Using WebSocket server:", {
-        serverType: currentSocketServer.constructor.name,
-        serverMethods: Object.getOwnPropertyNames(
-          Object.getPrototypeOf(currentSocketServer)
-        ).slice(0, 10),
-        correlationId,
-        driverId,
-        rideId: ride.id,
-      });
+      // ✅ IMPROVED: Check for response more frequently
+      const checkForResponse = async () => {
+        if (acknowledged) return;
 
-      this.logger.info("Sending ride request to driver", {
-        correlationId,
-        driverId,
-        rideId: ride.id,
-        serverAvailable: !!currentSocketServer,
-      });
+        try {
+          const redisKey = `ride_response:${ride.id}`;
+          const responseData = await redisClient.get(redisKey);
 
-      // Create response channel
-      const responseChannel = `ride:${ride.id}:response`;
+          if (responseData) {
+            const response = JSON.parse(responseData);
 
-      // Set up response listener
-      const handleDriverResponse = (response: {
-        rideId: number;
-        driverId: number;
-        accepted: boolean;
-        timestamp: number;
-      }) => {
-        console.log("📥 [RIDES SERVICE] Received driver response:", {
-          response,
-          expectedRideId: ride.id,
-          expectedDriverId: driverId,
-          correlationId,
-        });
+            console.log("📥 [RIDES SERVICE] Got response from Redis:", {
+              response,
+              expectedRideId: ride.id,
+              expectedDriverId: driverId,
+              correlationId,
+            });
 
-        if (
-          response.rideId === ride.id &&
-          response.driverId === driverId &&
-          !acknowledged
-        ) {
-          acknowledged = true;
-          cleanup();
-          currentSocketServer.off(responseChannel, handleDriverResponse);
+            if (
+              response.rideId === ride.id &&
+              response.driverId === driverId &&
+              !acknowledged
+            ) {
+              acknowledged = true;
+              cleanup();
 
-          this.logger.info("Received driver response", {
+              // Clean up the response from Redis
+              await redisClient.del(redisKey);
+
+              this.logger.info("✅ Driver response received", {
+                correlationId,
+                driverId,
+                rideId: ride.id,
+                accepted: response.accepted,
+                reason: response.reason,
+              });
+
+              resolve({ success: response.accepted, acknowledged: true });
+            }
+          }
+        } catch (error) {
+          this.logger.error("Error checking for ride response:", {
+            error: error.message,
             correlationId,
-            driverId,
-            rideId: ride.id,
-            accepted: response.accepted,
           });
-
-          resolve({ success: response.accepted, acknowledged: true });
         }
       };
 
-      // Listen for response
-      currentSocketServer.on(responseChannel, handleDriverResponse);
+      // ✅ Check every 250ms instead of 1000ms for faster response
+      checkInterval = setInterval(checkForResponse, 250);
 
-      // Send request to driver
+      // Also check immediately
+      checkForResponse();
+
+      // Send the ride request
       const rideRequestData = {
         rideId: ride.id,
         correlationId,
@@ -1735,7 +1731,7 @@ export class RidesService {
         tariff: ride.tariff_type,
         clientId: clientId,
         timestamp: Date.now(),
-        responseChannel,
+        responseChannel: `ride:${ride.id}:response`,
         expiresAt: Date.now() + timeoutMs,
       };
 
@@ -1757,15 +1753,6 @@ export class RidesService {
           driverId,
           rideId: ride.id,
           room: `driver:${driverId}`,
-          responseChannel,
-        });
-
-        this.logger.info("Ride request sent to driver", {
-          correlationId,
-          driverId,
-          rideId: ride.id,
-          room: `driver:${driverId}`,
-          responseChannel,
         });
       } catch (emitError) {
         console.error("❌ [RIDES SERVICE] Failed to emit ride request:", {
@@ -1780,6 +1767,41 @@ export class RidesService {
         resolve({ success: false, acknowledged: false });
       }
     });
+  }
+  // Add these helper methods for handling responses:
+
+  private async handleRideRejection(
+    rideId: number,
+    driverId: number,
+    reason?: string
+  ): Promise<void> {
+    const correlationId = randomUUID();
+
+    try {
+      // Release the driver lock
+      const lockKey = `lock:driver:${driverId}`;
+      await releaseLock(lockKey, correlationId);
+
+      // Clean up Redis state
+      await this.rollbackRideAssignment(driverId, rideId, correlationId);
+
+      this.logger.info("Ride rejection processed", {
+        correlationId,
+        rideId,
+        driverId,
+        reason,
+      });
+
+      // You could try to reassign to another driver here
+      // await this.reassignDriver(rideId, reason || "Driver declined");
+    } catch (error) {
+      this.logger.error("Failed to handle ride rejection", {
+        correlationId,
+        rideId,
+        driverId,
+        error: error.message,
+      });
+    }
   }
 
   private async checkRateLimit(
@@ -3131,4 +3153,134 @@ export class RidesService {
     console.log("🧪 [TEST] WebSocket connection test result:", result);
     return result;
   }
+
+  // Add this method to your RidesService class
+
+  /**
+   * Initialize response handlers for driver responses
+   * Call this in your constructor or onModuleInit
+   */
+  private initializeResponseHandlers(): void {
+    if (!this.socketServer) {
+      this.logger.warn("Socket server not available for response handlers");
+      return;
+    }
+
+    // Listen for all ride response events
+    this.socketServer.on("connection", (socket) => {
+      // Set up response handler for each connection
+      socket.onAny((eventName, ...args) => {
+        if (eventName.startsWith("ride:") && eventName.endsWith(":response")) {
+          this.handleDriverResponse(eventName, args[0]);
+        }
+      });
+    });
+
+    this.logger.info("Response handlers initialized");
+  }
+
+  /**
+   * Handle driver responses to ride requests
+   */
+  private async handleDriverResponse(
+    channel: string,
+    response: {
+      rideId: number;
+      driverId: number;
+      accepted: boolean;
+      reason?: string;
+      timestamp: number;
+    }
+  ): Promise<void> {
+    const correlationId = randomUUID();
+
+    this.logger.info("Processing driver response", {
+      correlationId,
+      channel,
+      response,
+    });
+
+    try {
+      if (response.accepted) {
+        // Driver accepted the ride
+        await this.acceptRide(response.rideId, response.driverId);
+
+        this.logger.info("Driver accepted ride", {
+          correlationId,
+          rideId: response.rideId,
+          driverId: response.driverId,
+        });
+      } else {
+        // Driver rejected the ride - you might want to find another driver
+        await this.handleRideRejection(
+          response.rideId,
+          response.driverId,
+          response.reason
+        );
+
+        this.logger.info("Driver rejected ride", {
+          correlationId,
+          rideId: response.rideId,
+          driverId: response.driverId,
+          reason: response.reason,
+        });
+      }
+    } catch (error) {
+      this.logger.error("Failed to process driver response", {
+        correlationId,
+        error: error.message,
+        channel,
+        response,
+      });
+    }
+  }
+
+  /**
+   * Handle ride rejection by driver
+   */
+  // private async handleRideRejection(
+  //   rideId: number,
+  //   driverId: number,
+  //   reason?: string
+  // ): Promise<void> {
+  //   const correlationId = randomUUID();
+
+  //   try {
+  //     // Release the driver lock
+  //     const lockKey = `lock:driver:${driverId}`;
+  //     await releaseLock(lockKey, correlationId);
+
+  //     // Clean up Redis state
+  //     await this.rollbackRideAssignment(driverId, rideId, correlationId);
+
+  //     // Option 1: Try to find another driver automatically
+  //     const ride = await this.rideRepository.findOne({
+  //       where: { id: rideId },
+  //       relations: ["client"],
+  //     });
+
+  //     if (ride && ride.status === RideStatus.PENDING) {
+  //       // Try to reassign to another driver
+  //       await this.reassignDriver(rideId, reason || "Driver declined");
+  //     }
+
+  //     // Option 2: Notify client that driver was not found
+  //     if (ride?.client) {
+  //       this.socketServer
+  //         .to(`client:${ride.client.id}`)
+  //         .emit("ride:driver-not-found", {
+  //           rideId,
+  //           reason: reason || "Driver declined",
+  //           timestamp: Date.now(),
+  //         });
+  //     }
+  //   } catch (error) {
+  //     this.logger.error("Failed to handle ride rejection", {
+  //       correlationId,
+  //       rideId,
+  //       driverId,
+  //       error: error.message,
+  //     });
+  //   }
+  // }
 }

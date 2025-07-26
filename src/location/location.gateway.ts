@@ -1130,6 +1130,8 @@ export class LocationGateway
 
   // Add these methods to your LocationGateway for driver ride management
 
+  
+
   @UseGuards(WsAuthGuard, WsRoleGuard)
   @Roles("driver")
   @SubscribeMessage("ride:respond")
@@ -1151,7 +1153,7 @@ export class LocationGateway
 
     try {
       this.logger.log(
-        `Driver ${driverId} ${data.accepted ? "accepted" : "rejected"} ride ${data.rideId}`,
+        `🚖 Driver ${driverId} ${data.accepted ? "accepted" : "rejected"} ride ${data.rideId}`,
         {
           driverId,
           rideId: data.rideId,
@@ -1160,37 +1162,61 @@ export class LocationGateway
         }
       );
 
-      // Send response back to the rides service
+      // ✅ FIXED: Send response to the exact channel the rides service is listening on
       const responseChannel = `ride:${data.rideId}:response`;
-      this.server.emit(responseChannel, {
+
+      const responseData = {
         rideId: data.rideId,
         driverId: driverId,
         accepted: data.accepted,
         reason: data.reason,
         timestamp: Date.now(),
-      });
+      };
 
-      // Update Redis state
+      console.log(
+        `📤 [LocationGateway] Emitting response to channel: ${responseChannel}`,
+        {
+          responseData,
+          timestamp: new Date().toISOString(),
+        }
+      );
+
+      // Method 1: Emit to the specific response channel
+      this.server.emit(responseChannel, responseData);
+
+      // Method 2: Also try injecting RidesService and calling it directly
+      // If you have RidesService injected, you can also do:
+      // await this.ridesService.processDriverRideResponse(responseData);
+
+      // Update Redis state for acceptance rate tracking
       if (data.accepted) {
         await redisClient.incr(`driver:${driverId}:accepted_offers`);
 
-        // Notify client that driver was found
+        // Notify client that driver accepted
         this.server
           .to(`ride:${data.rideId}:client`)
           .emit("ride:driver-assigned", {
             rideId: data.rideId,
             driverId: driverId,
-            driverName: `Driver ${driverId}`, // You can enhance this with actual driver name
+            driverName: `Driver ${driverId}`,
             timestamp: Date.now(),
           });
+
+        this.logger.log(
+          `✅ Ride ${data.rideId} accepted by driver ${driverId}`
+        );
       } else {
-        // If rejected, you might want to trigger finding another driver
+        // Notify that driver rejected
         this.server.emit("ride:driver-rejected", {
           rideId: data.rideId,
           driverId: driverId,
           reason: data.reason,
           timestamp: Date.now(),
         });
+
+        this.logger.log(
+          `❌ Ride ${data.rideId} rejected by driver ${driverId}: ${data.reason}`
+        );
       }
 
       return {
@@ -1332,7 +1358,4 @@ export class LocationGateway
       room: clientRoom,
     };
   }
-
-
-  
 }
