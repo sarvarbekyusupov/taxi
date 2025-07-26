@@ -11,7 +11,7 @@ import {
 import { Server, Socket } from "socket.io";
 import { JwtTokenService } from "../auth/jwt.service";
 import { redisClient } from "../redis/redis.provider";
-import { Logger, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
+import { forwardRef, Inject, Logger, UseGuards, UsePipes, ValidationPipe } from "@nestjs/common";
 import { DriverService } from "../driver/driver.service";
 import { UpdateLocationDto } from "../driver/dto/update-location.dto";
 import { Roles } from "../common/decorators/role.decorator";
@@ -19,6 +19,8 @@ import { WsRoleGuard } from "../auth/ws.role.guard";
 import { WsAuthGuard } from "../auth/ws-auth.guard";
 import { WsException } from "@nestjs/websockets";
 import { getSocketInstance, setSocketInstance } from "../socket/socket.provider";
+import { RidesService } from "../rides/rides.service";
+// import { RidesService } from "../rides/rides.service";
 // --- Interfaces ---
 interface DriverLocation {
   driverId: string;
@@ -85,7 +87,8 @@ export class LocationGateway
 
   constructor(
     private readonly jwtTokenService: JwtTokenService,
-    private readonly driverService: DriverService
+    private readonly driverService: DriverService,
+    private readonly ridesService: RidesService
   ) {}
 
   afterInit(server: Server) {
@@ -112,30 +115,6 @@ export class LocationGateway
       "✅ LocationGateway initialized and socket instance shared"
     );
   }
-
-  // === CONNECTION MANAGEMENT ===
-
-  // async handleConnection(client: Socket) {
-  //   // this.logger.log(`New connection attempt from client ${client.id}`);
-
-  //   this.logger.log(
-  //     `--- handleConnection: New client trying to connect: ${client.id}`
-  //   );
-
-  //   try {
-  //     const user = await this.authenticateClient(client);
-  //     if (!user) {
-  //       return; // Authentication failed, client already disconnected
-  //     }
-
-  //     client.data.user = user;
-  //     this.logger.log(`Client authenticated: ${user.userId} (${user.role})`);
-
-  //     client.emit("auth:success", {
-  //       message: "Successfully authenticated",
-  //       userId: user.userId,
-  //       role: user.role,
-  //     });
 
   async handleConnection(client: Socket) {
     this.logger.log(
@@ -296,51 +275,6 @@ export class LocationGateway
   }
 
   // === DRIVER MANAGEMENT ===
-
-  // Update your initializeDriver method in LocationGateway
-
-  // private async initializeDriver(driverId: string) {
-  //   try {
-  //     // Set driver as online
-  //     await this.setDriverStatus(driverId, "online");
-
-  //     // 🔧 ADD DEFAULT LOCATION FOR TESTING - This is the missing piece!
-  //     await redisClient.geoAdd("drivers:geo", {
-  //       longitude: 69.240562,
-  //       latitude: 41.311081,
-  //       member: driverId.toString(),
-  //     });
-
-  //     // Also store detailed location data
-  //     const locationData = {
-  //       lat: 41.311081,
-  //       lng: 69.240562,
-  //       timestamp: Date.now(),
-  //       rideId: null,
-  //     };
-
-  //     await redisClient.set(
-  //       `driver:${driverId}:location`,
-  //       JSON.stringify(locationData),
-  //       { EX: 3600 }
-  //     );
-
-  //     this.logger.log(
-  //       `Driver ${driverId} connected, is online, and location set.`
-  //     );
-
-  //     // Verify the location was added
-  //     const verification = await redisClient.geoPos("drivers:geo", driverId);
-  //     console.log(
-  //       `[DEBUG] Driver ${driverId} location verification:`,
-  //       verification
-  //     );
-  //   } catch (error) {
-  //     this.logger.error(
-  //       `Failed to initialize driver ${driverId}: ${error.message}`
-  //     );
-  //   }
-  // }
 
   private async initializeDriver(driverId: string) {
     try {
@@ -608,10 +542,23 @@ export class LocationGateway
         driverId,
       });
 
+      // Check Redis connection status
+      if (!redisClient.isReady) {
+        console.error("❌ Redis client is not ready!");
+        throw new Error("Redis client is not connected");
+      }
+
       // Validate coordinates before Redis operation
       this.validateCoordinates(location.lat, location.lng);
 
       // FIXED: Change from "drivers:location" to "drivers:geo" to match search service
+      console.log(`[DEBUG] About to call geoAdd with:`, {
+        key: "drivers:geo",
+        longitude: Number(location.lng),
+        latitude: Number(location.lat),
+        member: driverId.toString(),
+      });
+
       const geoAddResult = await redisClient.geoAdd("drivers:geo", {
         longitude: Number(location.lng),
         latitude: Number(location.lat),
@@ -630,15 +577,25 @@ export class LocationGateway
         rideId: location.rideId || null,
       };
 
-      await redisClient.set(
+      console.log(`[DEBUG] About to call set with:`, {
+        key: `driver:${driverId}:location`,
+        data: locationData,
+      });
+
+      const setResult = await redisClient.set(
         `driver:${driverId}:location`,
         JSON.stringify(locationData),
         { EX: 3600 } // 1 hour expiration
       );
 
       console.log(
-        `[DEBUG] 3. Successfully executed set for driver: ${driverId}`
+        `[DEBUG] 3. Successfully executed set for driver: ${driverId}, result: ${setResult}`
       );
+
+      // Verify the data was written
+      const verification = await redisClient.get(`driver:${driverId}:location`);
+      console.log(`[DEBUG] 4. Verification read result:`, verification);
+
     } catch (error) {
       this.logger.error(
         `[DEBUG] FAILED to update driver location for driver ${driverId}: ${error.message}`
@@ -1130,107 +1087,315 @@ export class LocationGateway
 
   // Add these methods to your LocationGateway for driver ride management
 
-  
+  // @UseGuards(WsAuthGuard, WsRoleGuard)
+  // @Roles("driver")
+  // @SubscribeMessage("ride:respond")
+  // async handleRideResponse(
+  //   @MessageBody()
+  //   data: {
+  //     rideId: number;
+  //     accepted: boolean;
+  //     reason?: string;
+  //   },
+  //   @ConnectedSocket() client: Socket
+  // ) {
+  //   const user = client.data.user as AuthenticatedUser;
+  //   const driverId = parseInt(user.userId);
+
+  //   // --- ✅ ADD THIS LOGGING BLOCK ---
+  //   this.logger.log(
+  //     `[RIDE RESPONSE] Received 'ride:respond' from Driver ID: ${driverId}`,
+  //     {
+  //       payload: data,
+  //       rideId: data.rideId,
+  //       accepted: data.accepted,
+  //       timestamp: new Date().toISOString(),
+  //     }
+  //   );
+  //   // --- END OF LOGGING BLOCK ---
+
+  //   if (!data.rideId || typeof data.accepted !== "boolean") {
+  //     throw new WsException("RideId and accepted (boolean) are required");
+  //   }
+
+  //   this.logger.log(`🚖 Driver ${driverId} responded to ride ${data.rideId}:`, {
+  //     accepted: data.accepted,
+  //     reason: data.reason,
+  //     timestamp: new Date().toISOString(),
+  //   });
+
+  //   try {
+  //     if (data.accepted) {
+  //       // ✅ CRITICAL: This MUST update the database immediately
+  //       const updatedRide = await this.ridesService.acceptRide(
+  //         data.rideId,
+  //         driverId
+  //       );
+
+  //       this.logger.log(
+  //         `✅ Ride ${data.rideId} accepted by driver ${driverId}`,
+  //         {
+  //           rideId: data.rideId,
+  //           driverId,
+  //           newStatus: updatedRide.status,
+  //           acceptedAt: updatedRide.accepted_at,
+  //         }
+  //       );
+
+  //       // Notify client about acceptance
+  //       this.server.to(`ride:${data.rideId}:client`).emit("ride:accepted", {
+  //         rideId: data.rideId,
+  //         driverId: driverId,
+  //         acceptedAt: updatedRide.accepted_at,
+  //         message: "Driver accepted your ride!",
+  //       });
+  //     } else {
+  //       // ✅ CRITICAL: This MUST update the database immediately
+  //       await this.ridesService.handleRideRejection(
+  //         data.rideId,
+  //         driverId,
+  //         data.reason || "Driver declined"
+  //       );
+
+  //       this.logger.log(
+  //         `❌ Ride ${data.rideId} rejected by driver ${driverId}`,
+  //         {
+  //           rideId: data.rideId,
+  //           driverId,
+  //           reason: data.reason,
+  //         }
+  //       );
+
+  //       // Notify client about rejection
+  //       this.server.to(`ride:${data.rideId}:client`).emit("ride:rejected", {
+  //         rideId: data.rideId,
+  //         reason: data.reason || "Driver declined",
+  //         message: "Looking for another driver...",
+  //       });
+  //     }
+
+  //     return {
+  //       success: true,
+  //       message: `Ride ${data.accepted ? "accepted" : "rejected"} successfully`,
+  //       rideId: data.rideId,
+  //       status: data.accepted ? "accepted" : "rejected",
+  //     };
+  //   } catch (error) {
+  //     this.logger.error(`❌ Failed to process ride response:`, {
+  //       driverId,
+  //       rideId: data.rideId,
+  //       error: error.message,
+  //       stack: error.stack,
+  //     });
+  //     throw new WsException(error.message || "Failed to process ride response");
+  //   }
+  // }
+
+  // Add this enhanced logging to your LocationGateway handleRideResponse method
 
   @UseGuards(WsAuthGuard, WsRoleGuard)
   @Roles("driver")
   @SubscribeMessage("ride:respond")
   async handleRideResponse(
-    @MessageBody()
-    data: {
-      rideId: number;
-      accepted: boolean;
-      reason?: string;
-    },
+    @MessageBody() rawData: any,
     @ConnectedSocket() client: Socket
   ) {
     const user = client.data.user as AuthenticatedUser;
     const driverId = parseInt(user.userId);
 
-    if (!data.rideId || typeof data.accepted !== "boolean") {
-      throw new WsException("RideId and accepted (boolean) are required");
+    // ✅ FIXED: Handle both string and object data
+    let data: {
+      rideId: number;
+      accepted: boolean;
+      reason?: string;
+    };
+
+    console.log("🚗 [RIDE RESPONSE DEBUG] ======================");
+    console.log("📥 Raw data received:", JSON.stringify(rawData, null, 2));
+    console.log("📥 Raw data type:", typeof rawData);
+
+    // Parse JSON string if needed
+    if (typeof rawData === "string") {
+      try {
+        data = JSON.parse(rawData);
+        console.log("✅ Successfully parsed JSON string");
+      } catch (error) {
+        console.error("❌ Failed to parse JSON string:", error);
+        throw new WsException("Invalid JSON format in request");
+      }
+    } else {
+      data = rawData;
+      console.log("✅ Data already parsed as object");
     }
 
-    try {
-      this.logger.log(
-        `🚖 Driver ${driverId} ${data.accepted ? "accepted" : "rejected"} ride ${data.rideId}`,
-        {
-          driverId,
-          rideId: data.rideId,
-          accepted: data.accepted,
-          reason: data.reason,
-        }
-      );
+    console.log("📊 Parsed data:", JSON.stringify(data, null, 2));
+    console.log("👤 Driver info:", {
+      userId: user.userId,
+      userIdType: typeof user.userId,
+      driverId: driverId,
+      driverIdType: typeof driverId,
+      role: user.role,
+    });
+    console.log("🎯 Validation checks:", {
+      hasRideId: !!data.rideId,
+      rideIdType: typeof data.rideId,
+      rideIdValue: data.rideId,
+      hasAccepted: typeof data.accepted !== "undefined",
+      acceptedType: typeof data.accepted,
+      acceptedValue: data.accepted,
+    });
+    console.log("================================================");
 
-      // ✅ FIXED: Send response to the exact channel the rides service is listening on
-      const responseChannel = `ride:${data.rideId}:response`;
-
-      const responseData = {
+    this.logger.log(
+      `[RIDE RESPONSE] Received 'ride:respond' from Driver ID: ${driverId}`,
+      {
+        payload: data,
         rideId: data.rideId,
-        driverId: driverId,
         accepted: data.accepted,
-        reason: data.reason,
-        timestamp: Date.now(),
-      };
+        timestamp: new Date().toISOString(),
+      }
+    );
 
-      console.log(
-        `📤 [LocationGateway] Emitting response to channel: ${responseChannel}`,
-        {
-          responseData,
-          timestamp: new Date().toISOString(),
-        }
+    // ✅ ENHANCED VALIDATION
+    if (!data.rideId) {
+      console.error("❌ Missing rideId in request");
+      throw new WsException("RideId is required");
+    }
+
+    if (typeof data.accepted !== "boolean") {
+      console.error("❌ Invalid accepted field:", {
+        value: data.accepted,
+        type: typeof data.accepted,
+        expected: "boolean",
+      });
+      throw new WsException("Accepted field must be a boolean");
+    }
+
+    // Convert rideId to number if it's a string
+    const rideId =
+      typeof data.rideId === "string" ? parseInt(data.rideId, 10) : data.rideId;
+
+    if (isNaN(rideId)) {
+      console.error(
+        "❌ Invalid rideId - cannot convert to number:",
+        data.rideId
       );
+      throw new WsException("Invalid rideId format");
+    }
 
-      // Method 1: Emit to the specific response channel
-      this.server.emit(responseChannel, responseData);
+    console.log("✅ Validation passed, calling service method...");
+    console.log("📞 Calling ridesService with:", {
+      rideId: rideId,
+      driverId: driverId,
+      accepted: data.accepted,
+    });
 
-      // Method 2: Also try injecting RidesService and calling it directly
-      // If you have RidesService injected, you can also do:
-      // await this.ridesService.processDriverRideResponse(responseData);
-
-      // Update Redis state for acceptance rate tracking
+    try {
       if (data.accepted) {
-        await redisClient.incr(`driver:${driverId}:accepted_offers`);
-
-        // Notify client that driver accepted
-        this.server
-          .to(`ride:${data.rideId}:client`)
-          .emit("ride:driver-assigned", {
-            rideId: data.rideId,
-            driverId: driverId,
-            driverName: `Driver ${driverId}`,
-            timestamp: Date.now(),
-          });
-
-        this.logger.log(
-          `✅ Ride ${data.rideId} accepted by driver ${driverId}`
+        console.log("🎉 Driver ACCEPTED - calling acceptRide...");
+        const updatedRide = await this.ridesService.acceptRide(
+          rideId,
+          driverId
         );
-      } else {
-        // Notify that driver rejected
-        this.server.emit("ride:driver-rejected", {
-          rideId: data.rideId,
-          driverId: driverId,
-          reason: data.reason,
-          timestamp: Date.now(),
+
+        console.log("✅ acceptRide returned:", {
+          rideId: updatedRide.id,
+          status: updatedRide.status,
+          acceptedAt: updatedRide.accepted_at,
+          driverId: updatedRide.driver?.id,
         });
 
-        this.logger.log(
-          `❌ Ride ${data.rideId} rejected by driver ${driverId}: ${data.reason}`
+        // Notify client
+        this.server.to(`ride:${rideId}:client`).emit("ride:accepted", {
+          rideId: rideId,
+          driverId: driverId,
+          acceptedAt: updatedRide.accepted_at,
+          message: "Driver accepted your ride!",
+        });
+
+        console.log("📢 Sent acceptance notification to client");
+      } else {
+        console.log("❌ Driver REJECTED - calling handleRideRejection...");
+        await this.ridesService.handleRideRejection(
+          rideId,
+          driverId,
+          data.reason || "Driver declined"
         );
+
+        console.log("✅ handleRideRejection completed");
+
+        // Notify client
+        this.server.to(`ride:${rideId}:client`).emit("ride:rejected", {
+          rideId: rideId,
+          reason: data.reason || "Driver declined",
+          message: "Looking for another driver...",
+        });
+
+        console.log("📢 Sent rejection notification to client");
       }
+
+      const response = {
+        success: true,
+        message: `Ride ${data.accepted ? "accepted" : "rejected"} successfully`,
+        rideId: rideId,
+        status: data.accepted ? "accepted" : "rejected",
+      };
+
+      console.log("✅ Handler completed successfully:", response);
+      return response;
+    } catch (error) {
+      console.error("💥 Service method failed:", {
+        error: error.message,
+        stack: error.stack,
+        rideId: rideId,
+        driverId: driverId,
+      });
+
+      this.logger.error(`❌ Failed to process ride response:`, {
+        driverId,
+        rideId: rideId,
+        error: error.message,
+        stack: error.stack,
+      });
+      throw new WsException(error.message || "Failed to process ride response");
+    }
+  }
+
+  // Also add this method to check the current ride status
+  @SubscribeMessage("debug:ride-status")
+  async debugRideStatus(
+    @MessageBody() data: { rideId: number },
+    @ConnectedSocket() client: Socket
+  ) {
+    try {
+      const ride = await this.ridesService.findOne(data.rideId);
+
+      console.log("🔍 [DEBUG] Current ride status:", {
+        rideId: data.rideId,
+        found: !!ride,
+        status: ride?.status,
+        driverId: ride?.driver?.id,
+        clientId: ride?.client?.id,
+        acceptedAt: ride?.accepted_at,
+        createdAt: ride?.requested_at,
+      });
 
       return {
         success: true,
-        message: data.accepted ? "Ride accepted" : "Ride rejected",
-        rideId: data.rideId,
+        ride: ride
+          ? {
+              id: ride.id,
+              status: ride.status,
+              driverId: ride.driver?.id,
+              clientId: ride.client?.id,
+              acceptedAt: ride.accepted_at,
+              requestedAt: ride.requested_at,
+            }
+          : null,
       };
     } catch (error) {
-      this.logger.error(`Failed to process ride response: ${error.message}`, {
-        driverId,
-        rideId: data.rideId,
-        error: error.message,
-      });
-      throw new WsException("Failed to process ride response");
+      console.error("❌ Debug ride status failed:", error);
+      return { success: false, error: error.message };
     }
   }
 
@@ -1357,5 +1522,49 @@ export class LocationGateway
       message: `Subscribed to ride ${data.rideId} updates`,
       room: clientRoom,
     };
+  }
+
+  @UseGuards(WsAuthGuard, WsRoleGuard)
+  @Roles("driver")
+  @SubscribeMessage(/^ride:\d+:response$/) // ✅ Dynamic pattern to match ride:X:response
+  async handleDynamicRideResponse(
+    @MessageBody() data: any,
+    @ConnectedSocket() client: Socket
+  ) {
+    // Extract rideId from the event name or data
+    const rideId =
+      data.rideId || parseInt(client.handshake.query.rideId as string);
+
+    const user = client.data.user as AuthenticatedUser;
+    const driverId = parseInt(user.userId);
+
+    this.logger.log(`🚖 Driver ${driverId} responded to ride ${rideId}:`, {
+      accepted: data.accepted,
+      reason: data.reason,
+      eventPattern: "ride:X:response",
+    });
+
+    try {
+      if (data.accepted) {
+        await this.ridesService.acceptRide(rideId, driverId);
+        this.logger.log(`✅ Ride ${rideId} accepted by driver ${driverId}`);
+      } else {
+        await this.ridesService.handleRideRejection(
+          rideId,
+          driverId,
+          data.reason || "Driver declined"
+        );
+        this.logger.log(`❌ Ride ${rideId} rejected by driver ${driverId}`);
+      }
+
+      return { success: true, rideId };
+    } catch (error) {
+      this.logger.error(`❌ Failed to process ride response:`, {
+        driverId,
+        rideId,
+        error: error.message,
+      });
+      throw new WsException(error.message);
+    }
   }
 }

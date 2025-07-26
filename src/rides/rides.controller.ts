@@ -610,4 +610,57 @@ export class RidesController {
   //     carTypeId,
   //   );
   // }
+
+  @Get(":id/status")
+  async getRideStatus(@Param("id") id: number) {
+    const ride = await this.ridesService.findOne(id);
+    return {
+      rideId: id,
+      status: ride?.status,
+      acceptedAt: ride?.accepted_at,
+      cancelledAt: ride?.cancelled_at,
+      driverId: ride?.driver?.id,
+      clientId: ride?.client?.id,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  // ========================= WILL BE DELETED
+  /**
+   * Clear a specific driver's ride assignment
+   */
+  @Delete("driver/:driverId/ride")
+  async clearDriverRide(@Param("driverId") driverId: number) {
+    return this.ridesService.clearDriverRide(driverId);
+  }
+
+  /**
+   * Get driver status and availability
+   */
+  @Get("driver/:driverId/status")
+  async getDriverStatus(@Param("driverId") driverId: number) {
+    return this.ridesService.getDriverStatus(driverId);
+  }
+
+  /**
+   * Reset driver to available state
+   */
+  @UseGuards(RoleGuard, UserCategoryGuard)
+  @Roles("client", "admin", "super_admin")
+  @ApiBearerAuth()
+  @Post("driver/:driverId/reset")
+  async resetDriverToAvailable(
+    @Param("driverId") driverId: number,
+    @Body() body?: { location?: { lat: number; lng: number } }
+  ) {
+    return this.ridesService.resetDriverToAvailable(driverId, body?.location);
+  }
+
+  /**
+   * Clear all driver ride assignments (testing helper)
+   */
+  @Delete("drivers/all/rides")
+  async clearAllDriverRides() {
+    return this.ridesService.clearAllDriverRides();
+  }
 }

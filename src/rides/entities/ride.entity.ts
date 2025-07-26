@@ -128,7 +128,7 @@ export class Ride {
   @Column({ default: false })
   created_by_operator: boolean;
 
-  @Column({ type: "timestamp" })
+  @CreateDateColumn({ type: "timestamp" })
   requested_at: Date;
 
   @Column({ type: "timestamp", nullable: true })
@@ -139,6 +139,9 @@ export class Ride {
 
   @Column({ type: "timestamp", nullable: true })
   completed_at?: Date;
+
+  // @Column({ type: "timestamp", nullable: true })
+  // cancelled_at?: Date;
 
   @Column({ type: "timestamp", nullable: true })
   cancelled_at?: Date;

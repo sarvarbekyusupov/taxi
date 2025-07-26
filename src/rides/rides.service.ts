@@ -271,42 +271,118 @@ export class RidesService {
     });
   }
 
+  // private loadConfiguration(): RideServiceConfig {
+  //   return {
+  //     lockTtlMs: this.configService.get<number>("RIDE_LOCK_TTL_MS", 300000), // 5 minutes
+  //     ackTimeoutMs: this.configService.get<number>(
+  //       "RIDE_ACK_TIMEOUT_MS",
+  //       300000
+  //     ), // 5 minutes instead of 5000ms
+  //     rideStatusTtl: this.configService.get<number>("RIDE_STATUS_TTL", 3600),
+  //     driverRideTtl: this.configService.get<number>("DRIVER_RIDE_TTL", 1800),
+  //     maxRetries: this.configService.get<number>("RIDE_MAX_RETRIES", 3),
+  //     maxCandidateDrivers: this.configService.get<number>(
+  //       "MAX_CANDIDATE_DRIVERS",
+  //       10
+  //     ),
+  //     circuitBreakerFailureThreshold: this.configService.get<number>(
+  //       "CB_FAILURE_THRESHOLD",
+  //       5
+  //     ),
+  //     circuitBreakerRecoveryTimeout: this.configService.get<number>(
+  //       "CB_RECOVERY_TIMEOUT",
+  //       30000
+  //     ),
+  //     rateLimit: {
+  //       maxRequests: this.configService.get<number>(
+  //         "RATE_LIMIT_MAX_REQUESTS",
+  //         100
+  //       ),
+  //       windowMs: this.configService.get<number>("RATE_LIMIT_WINDOW_MS", 60000),
+  //     },
+  //     redis: {
+  //       retryDelayMs: this.configService.get<number>(
+  //         "REDIS_RETRY_DELAY_MS",
+  //         1000
+  //       ),
+  //       maxRetryDelay: this.configService.get<number>(
+  //         "REDIS_MAX_RETRY_DELAY",
+  //         5000
+  //       ),
+  //     },
+  //   };
+  // }
+
   private loadConfiguration(): RideServiceConfig {
+    // Helper function to safely parse numbers from environment variables
+    const parseNumber = (
+      value: string | number | undefined,
+      defaultValue: number
+    ): number => {
+      if (typeof value === "number") return value;
+      if (typeof value === "string") {
+        const parsed = parseInt(value, 10);
+        return isNaN(parsed) ? defaultValue : parsed;
+      }
+      return defaultValue;
+    };
+
     return {
-      lockTtlMs: this.configService.get<number>("RIDE_LOCK_TTL_MS", 300000), // 5 minutes
-      ackTimeoutMs: this.configService.get<number>(
-        "RIDE_ACK_TIMEOUT_MS",
+      lockTtlMs: parseNumber(
+        this.configService.get("RIDE_LOCK_TTL_MS"),
         300000
-      ), // 5 minutes instead of 5000ms
-      rideStatusTtl: this.configService.get<number>("RIDE_STATUS_TTL", 3600),
-      driverRideTtl: this.configService.get<number>("DRIVER_RIDE_TTL", 1800),
-      maxRetries: this.configService.get<number>("RIDE_MAX_RETRIES", 3),
-      maxCandidateDrivers: this.configService.get<number>(
-        "MAX_CANDIDATE_DRIVERS",
+      ), // 5 minutes
+
+      ackTimeoutMs: parseNumber(
+        this.configService.get("RIDE_ACK_TIMEOUT_MS"),
+        300000
+      ), // 5 minutes
+
+      rideStatusTtl: parseNumber(
+        this.configService.get("RIDE_STATUS_TTL"),
+        3600
+      ),
+
+      driverRideTtl: parseNumber(
+        this.configService.get("DRIVER_RIDE_TTL"),
+        1800
+      ),
+
+      maxRetries: parseNumber(this.configService.get("RIDE_MAX_RETRIES"), 3),
+
+      maxCandidateDrivers: parseNumber(
+        this.configService.get("MAX_CANDIDATE_DRIVERS"),
         10
       ),
-      circuitBreakerFailureThreshold: this.configService.get<number>(
-        "CB_FAILURE_THRESHOLD",
+
+      circuitBreakerFailureThreshold: parseNumber(
+        this.configService.get("CB_FAILURE_THRESHOLD"),
         5
       ),
-      circuitBreakerRecoveryTimeout: this.configService.get<number>(
-        "CB_RECOVERY_TIMEOUT",
+
+      circuitBreakerRecoveryTimeout: parseNumber(
+        this.configService.get("CB_RECOVERY_TIMEOUT"),
         30000
       ),
+
       rateLimit: {
-        maxRequests: this.configService.get<number>(
-          "RATE_LIMIT_MAX_REQUESTS",
+        maxRequests: parseNumber(
+          this.configService.get("RATE_LIMIT_MAX_REQUESTS"),
           100
         ),
-        windowMs: this.configService.get<number>("RATE_LIMIT_WINDOW_MS", 60000),
+        windowMs: parseNumber(
+          this.configService.get("RATE_LIMIT_WINDOW_MS"),
+          60000
+        ),
       },
+
       redis: {
-        retryDelayMs: this.configService.get<number>(
-          "REDIS_RETRY_DELAY_MS",
+        retryDelayMs: parseNumber(
+          this.configService.get("REDIS_RETRY_DELAY_MS"),
           1000
         ),
-        maxRetryDelay: this.configService.get<number>(
-          "REDIS_MAX_RETRY_DELAY",
+        maxRetryDelay: parseNumber(
+          this.configService.get("REDIS_MAX_RETRY_DELAY"),
           5000
         ),
       },
@@ -873,6 +949,499 @@ export class RidesService {
     }
   }
 
+  // private async getNearestAvailableDriver(
+  //   pickupLat: number,
+  //   pickupLng: number,
+  //   tariffType: TariffType,
+  //   correlationId: string
+  // ): Promise<{ driverId: number; lockKey: string } | null> {
+  //   const timer = driverMatchingDuration.startTimer();
+  //   this.logger.info("Starting driver matching process", {
+  //     correlationId,
+  //     tariff: tariffType,
+  //     location: { lat: pickupLat, lng: pickupLng },
+  //   });
+
+  //   try {
+  //     // Debug first
+  //     await this.debugDriverEligibility(tariffType, correlationId);
+
+  //     // Ensure we have basic data
+  //     await this.ensureBasicData(correlationId);
+
+  //     // Koordinatalarni tekshirish
+  //     if (!this.isValidCoordinate(pickupLat, pickupLng)) {
+  //       throw new ServiceError(
+  //         ServiceErrorType.VALIDATION_ERROR,
+  //         "Invalid coordinates for driver search",
+  //         correlationId
+  //       );
+  //     }
+
+  //     // QADAM 1: Use QueryBuilder for better control
+  //     const eligibleCars = await this.carRepository
+  //       .createQueryBuilder("car")
+  //       .innerJoinAndSelect("car.eligible_tariffs", "tariff")
+  //       .innerJoinAndSelect("car.driver", "driver")
+  //       .where("LOWER(tariff.name) = LOWER(:tariffName)", {
+  //         tariffName: tariffType,
+  //       })
+  //       .andWhere("car.is_active = :carActive", { carActive: true })
+  //       .andWhere("driver.is_active = :driverActive", { driverActive: true })
+  //       .getMany();
+
+  //     const eligibleDriverIds = eligibleCars
+  //       .map((car) => car.driver?.id)
+  //       .filter((id): id is number => id != null);
+
+  //     console.log(
+  //       `[DEBUG] STEP 1 (QueryBuilder): Drivers eligible for tariff '${tariffType}'`,
+  //       eligibleDriverIds
+  //     );
+
+  //     if (eligibleDriverIds.length === 0) {
+  //       // Try alternative approach with raw SQL as fallback
+  //       const rawResults = await this.dataSource.query(
+  //         `
+  //       SELECT DISTINCT c.driver_id
+  //       FROM cars c
+  //       INNER JOIN car_tariffs ct ON ct.car_id = c.id
+  //       INNER JOIN tariffs t ON t.id = ct.tariff_id
+  //       INNER JOIN drivers d ON d.id = c.driver_id
+  //       WHERE LOWER(t.name) = LOWER($1) AND c.is_active = true AND d.is_active = true
+  //       `,
+  //         [tariffType]
+  //       );
+
+  //       const rawDriverIds = rawResults.map((r) => r.driver_id);
+
+  //       console.log(
+  //         `[DEBUG] STEP 1 (Raw SQL Fallback): Drivers eligible for tariff '${tariffType}'`,
+  //         rawDriverIds
+  //       );
+
+  //       if (rawDriverIds.length === 0) {
+  //         this.logger.warn(
+  //           `No drivers are eligible for tariff: ${tariffType}`,
+  //           {
+  //             correlationId,
+  //           }
+  //         );
+  //         return null;
+  //       }
+  //     }
+
+  //     this.logger.info(
+  //       `Found ${eligibleDriverIds.length} drivers eligible for tariff "${tariffType}"`,
+  //       { correlationId, driverIds: eligibleDriverIds }
+  //     );
+
+  //     // QADAM 2: REDIS GEOSPATIAL DEBUG AND SEARCH
+  //     const maxRadius = getMaxSearchRadius(tariffType);
+  //     const searchKey = "drivers:geo";
+
+  //     // === REDIS GEOSPATIAL DEBUG SECTION ===
+  //     this.logger.info("=== REDIS GEOSPATIAL DEBUG ===", {
+  //       correlationId,
+  //       searchKey,
+  //       coordinates: { lat: pickupLat, lng: pickupLng },
+  //       maxRadius,
+  //     });
+
+  //     try {
+  //       // Check what's actually in Redis geo set
+  //       const allDriversInGeo = (await redisClient.sendCommand([
+  //         "ZRANGE",
+  //         searchKey,
+  //         "0",
+  //         "-1",
+  //         "WITHSCORES",
+  //       ])) as string[];
+  //       this.logger.info("All drivers in geo set:", {
+  //         correlationId,
+  //         driversInGeo: allDriversInGeo,
+  //         count: Array.isArray(allDriversInGeo) ? allDriversInGeo.length : 0,
+  //       });
+
+  //       // Check specific driver positions for eligible drivers
+  //       for (const driverId of eligibleDriverIds) {
+  //         const driverPosition = (await redisClient.sendCommand([
+  //           "GEOPOS",
+  //           searchKey,
+  //           driverId.toString(),
+  //         ])) as string[][];
+  //         this.logger.info(`Driver ${driverId} position in Redis:`, {
+  //           correlationId,
+  //           driverId,
+  //           position: driverPosition,
+  //         });
+  //       }
+
+  //       // Test the exact GEORADIUS query with distance info
+  //       const geoRadiusTest = (await redisClient.sendCommand([
+  //         "GEORADIUS",
+  //         searchKey,
+  //         pickupLng.toString(),
+  //         pickupLat.toString(),
+  //         maxRadius.toString(),
+  //         "m",
+  //         "WITHDIST",
+  //         "WITHCOORD",
+  //       ])) as string[][];
+  //       this.logger.info("GEORADIUS test result (with distance and coords):", {
+  //         correlationId,
+  //         result: geoRadiusTest,
+  //         resultCount: Array.isArray(geoRadiusTest) ? geoRadiusTest.length : 0,
+  //         queryUsed: `GEORADIUS ${searchKey} ${pickupLng} ${pickupLat} ${maxRadius} m WITHDIST WITHCOORD`,
+  //       });
+
+  //       // Also test with a very large radius to see if any drivers exist
+  //       const largeRadiusTest = (await redisClient.sendCommand([
+  //         "GEORADIUS",
+  //         searchKey,
+  //         pickupLng.toString(),
+  //         pickupLat.toString(),
+  //         "100000", // 100km
+  //         "m",
+  //         "WITHDIST",
+  //       ])) as string[][];
+  //       this.logger.info("Large radius test (100km):", {
+  //         correlationId,
+  //         result: largeRadiusTest,
+  //         resultCount: Array.isArray(largeRadiusTest)
+  //           ? largeRadiusTest.length
+  //           : 0,
+  //       });
+  //     } catch (debugError) {
+  //       this.logger.error("Redis debug commands failed:", {
+  //         correlationId,
+  //         error: debugError.message,
+  //         searchKey,
+  //       });
+  //     }
+
+  //     // === ACTUAL SEARCH ===
+  //     const nearbyDriverIdsStr = await this.retryOperation(async () => {
+  //       return await this.circuitBreaker.execute(async () => {
+  //         const result = (await redisClient.sendCommand([
+  //           "GEORADIUS",
+  //           searchKey,
+  //           pickupLng.toString(),
+  //           pickupLat.toString(),
+  //           maxRadius.toString(),
+  //           "m",
+  //           "COUNT",
+  //           this.config.maxCandidateDrivers.toString(),
+  //           "ASC",
+  //         ])) as string[];
+
+  //         this.logger.info("GEORADIUS search completed:", {
+  //           correlationId,
+  //           searchKey,
+  //           maxRadius,
+  //           resultCount: result?.length || 0,
+  //           result,
+  //         });
+
+  //         return result;
+  //       }, correlationId);
+  //     });
+
+  //     if (!nearbyDriverIdsStr?.length) {
+  //       this.logger.warn("No drivers found in Redis geospatial search", {
+  //         correlationId,
+  //         maxRadius,
+  //         searchKey,
+  //         coordinates: { lat: pickupLat, lng: pickupLng },
+  //         eligibleDriverIds,
+  //       });
+  //       return null;
+  //     }
+
+  //     const nearbyDriverIds = nearbyDriverIdsStr.map((id) => Number(id));
+
+  //     console.log(
+  //       `[DEBUG] STEP 2: Drivers found nearby in Redis`,
+  //       nearbyDriverIds
+  //     );
+
+  //     // QADAM 3: INTERSECTION - Only keep candidates that are both nearby and eligible
+  //     const finalCandidateIds = nearbyDriverIds.filter((id) =>
+  //       eligibleDriverIds.includes(id)
+  //     );
+
+  //     this.logger.info("Driver filtering results:", {
+  //       correlationId,
+  //       eligibleDriverIds,
+  //       nearbyDriverIds,
+  //       finalCandidateIds,
+  //       intersectionCount: finalCandidateIds.length,
+  //     });
+
+  //     if (finalCandidateIds.length === 0) {
+  //       this.logger.warn(
+  //         "No eligible drivers found within the geographical radius after intersection",
+  //         {
+  //           correlationId,
+  //           tariff: tariffType,
+  //           eligibleCount: eligibleDriverIds.length,
+  //           nearbyCount: nearbyDriverIds.length,
+  //         }
+  //       );
+  //       return null;
+  //     }
+
+  //     this.logger.info(
+  //       `Found ${finalCandidateIds.length} final candidates after filtering`,
+  //       { correlationId, candidates: finalCandidateIds }
+  //     );
+
+  //     // QADAM 4: STATUS CHECK AND SCORING WITH COMPREHENSIVE DEBUG
+  //     const candidatesWithScore: { id: number; score: number }[] = [];
+  //     const pipeline = redisClient.multi();
+
+  //     // Build pipeline commands
+  //     for (const driverId of finalCandidateIds) {
+  //       pipeline.get(RedisKeys.driverStatus(driverId));
+  //       pipeline.get(RedisKeys.driverRide(driverId));
+  //       pipeline.get(RedisKeys.driverAcceptedOffers(driverId));
+  //       pipeline.get(RedisKeys.driverTotalOffers(driverId));
+  //     }
+
+  //     const redisResults = await this.circuitBreaker.execute(
+  //       async () => await pipeline.exec(),
+  //       correlationId
+  //     );
+
+  //     // === COMPREHENSIVE REDIS PIPELINE DEBUG ===
+  //     this.logger.info("=== REDIS PIPELINE DEBUG ===", {
+  //       correlationId,
+  //       finalCandidateIds,
+  //       pipelineCommandsCount: finalCandidateIds.length * 4,
+  //       pipelineCommands: finalCandidateIds.map((driverId) => [
+  //         `GET ${RedisKeys.driverStatus(driverId)}`,
+  //         `GET ${RedisKeys.driverRide(driverId)}`,
+  //         `GET ${RedisKeys.driverAcceptedOffers(driverId)}`,
+  //         `GET ${RedisKeys.driverTotalOffers(driverId)}`,
+  //       ]),
+  //       redisResultsRaw: redisResults,
+  //       redisResultsLength: redisResults?.length || 0,
+  //       redisResultsType: typeof redisResults,
+  //     });
+
+  //     // ✅ NEW FIXED CODE:
+  //     // Replace the pipeline processing section (starting around line 614)
+  //     for (let i = 0; i < finalCandidateIds.length; i++) {
+  //       const driverId = finalCandidateIds[i];
+  //       const baseIndex = i * 4;
+
+  //       // Access the raw results directly
+  //       const status = redisResults?.[baseIndex] as string | null;
+  //       const currentRide = redisResults?.[baseIndex + 1] as string | null;
+  //       const acceptedStr = redisResults?.[baseIndex + 2] as string | null;
+  //       const totalStr = redisResults?.[baseIndex + 3] as string | null;
+
+  //       // Enhanced debug logging
+  //       console.log(`[DEBUG] Driver ${driverId} pipeline result analysis:`, {
+  //         driverId,
+  //         baseIndex,
+  //         rawResults: {
+  //           status,
+  //           currentRide,
+  //           acceptedStr,
+  //           totalStr,
+  //         },
+  //         statusCheck: {
+  //           isString: typeof status === "string",
+  //           isOnline: status === "online",
+  //           length: status?.length,
+  //           rawStatus: JSON.stringify(status),
+  //         },
+  //         correlationId,
+  //       });
+
+  //       this.logger.info(`Driver ${driverId} status check:`, {
+  //         correlationId,
+  //         driverId,
+  //         status,
+  //         is_online: status === "online",
+  //         isFree: !currentRide,
+  //       });
+
+  //       if (status !== "online" || currentRide) {
+  //         this.logger.info(`Driver ${driverId} filtered out:`, {
+  //           correlationId,
+  //           driverId,
+  //           reason:
+  //             status !== "online"
+  //               ? `status is '${status}' not 'online'`
+  //               : `has active ride: ${currentRide}`,
+  //         });
+  //         continue;
+  //       }
+
+  //       // Calculate score and add to candidates
+  //       const accepted = Number(acceptedStr) || 0;
+  //       const total = Number(totalStr) || 0;
+  //       const acceptanceRate = total > 0 ? accepted / total : 0.5;
+  //       const score = 1 + 2 * acceptanceRate;
+
+  //       candidatesWithScore.push({ id: driverId, score });
+
+  //       this.logger.info(`Driver ${driverId} added to candidates:`, {
+  //         correlationId,
+  //         driverId,
+  //         score,
+  //         accepted,
+  //         total,
+  //         acceptanceRate,
+  //       });
+  //     }
+  //     // Alternative approach - if the above doesn't work, try this simpler method:
+  //     // Replace the pipeline section with individual Redis calls for debugging:
+
+  //     // 🔧 FALLBACK SOLUTION - Replace pipeline with individual calls
+  //     // const candidatesWithScore: { id: number; score: number }[] = [];
+
+  //     for (const driverId of finalCandidateIds) {
+  //       try {
+  //         // Make individual Redis calls instead of pipeline
+  //         const [status, currentRide, acceptedStr, totalStr] =
+  //           await Promise.all([
+  //             redisClient.get(RedisKeys.driverStatus(driverId)),
+  //             redisClient.get(RedisKeys.driverRide(driverId)),
+  //             redisClient.get(RedisKeys.driverAcceptedOffers(driverId)),
+  //             redisClient.get(RedisKeys.driverTotalOffers(driverId)),
+  //           ]);
+
+  //         console.log(`[DEBUG] Driver ${driverId} individual calls result:`, {
+  //           driverId,
+  //           status,
+  //           statusType: typeof status,
+  //           currentRide,
+  //           acceptedStr,
+  //           totalStr,
+  //           isOnline: status === "online",
+  //           correlationId,
+  //         });
+
+  //         this.logger.info(`Driver ${driverId} status check:`, {
+  //           correlationId,
+  //           driverId,
+  //           status,
+  //           is_online: status === "online",
+  //           isFree: !currentRide,
+  //         });
+
+  //         if (status !== "online" || currentRide) {
+  //           this.logger.info(`Driver ${driverId} filtered out:`, {
+  //             correlationId,
+  //             driverId,
+  //             reason:
+  //               status !== "online"
+  //                 ? `status is '${status}' not 'online'`
+  //                 : `has active ride: ${currentRide}`,
+  //           });
+  //           continue;
+  //         }
+
+  //         // Calculate score
+  //         const accepted = Number(acceptedStr) || 0;
+  //         const total = Number(totalStr) || 0;
+  //         const acceptanceRate = total > 0 ? accepted / total : 0.5;
+  //         const score = 1 + 2 * acceptanceRate;
+
+  //         candidatesWithScore.push({ id: driverId, score });
+
+  //         this.logger.info(`Driver ${driverId} added to candidates:`, {
+  //           correlationId,
+  //           driverId,
+  //           score,
+  //           accepted,
+  //           total,
+  //           acceptanceRate,
+  //         });
+  //       } catch (error) {
+  //         this.logger.error(`Failed to check driver ${driverId} status:`, {
+  //           correlationId,
+  //           driverId,
+  //           error: error.message,
+  //         });
+  //         continue;
+  //       }
+  //     }
+  //     if (candidatesWithScore.length === 0) {
+  //       this.logger.info(
+  //         "No available (online and free) drivers found from the final candidates.",
+  //         { correlationId }
+  //       );
+  //       return null;
+  //     }
+
+  //     // Sort by best score first
+  //     candidatesWithScore.sort((a, b) => b.score - a.score);
+
+  //     // QADAM 5: LOCK THE BEST CANDIDATE
+  //     for (const candidate of candidatesWithScore) {
+  //       const lockKey = `lock:driver:${candidate.id}`;
+  //       try {
+  //         if (
+  //           !(await acquireLock(lockKey, this.config.lockTtlMs, correlationId))
+  //         ) {
+  //           continue;
+  //         }
+
+  //         // Double-check after acquiring lock
+  //         const [statusCheck, currentRideCheck] =
+  //           await this.circuitBreaker.execute(async () => {
+  //             return await Promise.all([
+  //               redisClient.get(RedisKeys.driverStatus(candidate.id)),
+  //               redisClient.get(RedisKeys.driverRide(candidate.id)),
+  //             ]);
+  //           }, correlationId);
+
+  //         if (statusCheck === "online" && !currentRideCheck) {
+  //           this.logger.info(
+  //             `Successfully matched and locked driver ${candidate.id}`,
+  //             {
+  //               correlationId,
+  //               score: candidate.score,
+  //             }
+  //           );
+  //           return { driverId: candidate.id, lockKey };
+  //         } else {
+  //           await releaseLock(lockKey, correlationId);
+  //         }
+  //       } catch (error) {
+  //         this.logger.warn(
+  //           `Error processing candidate driver ${candidate.id}`,
+  //           {
+  //             correlationId,
+  //             error: error.message,
+  //           }
+  //         );
+  //         await releaseLock(lockKey, correlationId).catch(() => {});
+  //         continue;
+  //       }
+  //     }
+
+  //     this.logger.warn(
+  //       "No drivers could be locked from the available candidates.",
+  //       { correlationId }
+  //     );
+  //     return null;
+  //   } catch (error) {
+  //     this.logger.error("Driver matching process failed", {
+  //       correlationId,
+  //       error: error.message,
+  //       stack: error.stack,
+  //     });
+  //     throw error;
+  //   } finally {
+  //     timer();
+  //   }
+  // }
+
   private async getNearestAvailableDriver(
     pickupLat: number,
     pickupLng: number,
@@ -887,13 +1456,7 @@ export class RidesService {
     });
 
     try {
-      // Debug first
-      await this.debugDriverEligibility(tariffType, correlationId);
-
-      // Ensure we have basic data
-      await this.ensureBasicData(correlationId);
-
-      // Koordinatalarni tekshirish
+      // Validate coordinates
       if (!this.isValidCoordinate(pickupLat, pickupLng)) {
         throw new ServiceError(
           ServiceErrorType.VALIDATION_ERROR,
@@ -902,7 +1465,15 @@ export class RidesService {
         );
       }
 
-      // QADAM 1: Use QueryBuilder for better control
+      // ✅ FIXED: Use case-insensitive search for tariff
+      this.logger.info(
+        "Searching for eligible drivers with case-insensitive tariff matching",
+        {
+          correlationId,
+          tariffType,
+        }
+      );
+
       const eligibleCars = await this.carRepository
         .createQueryBuilder("car")
         .innerJoinAndSelect("car.eligible_tariffs", "tariff")
@@ -918,133 +1489,61 @@ export class RidesService {
         .map((car) => car.driver?.id)
         .filter((id): id is number => id != null);
 
-      console.log(
-        `[DEBUG] STEP 1 (QueryBuilder): Drivers eligible for tariff '${tariffType}'`,
-        eligibleDriverIds
-      );
+      this.logger.info("Database eligibility check results:", {
+        correlationId,
+        tariffType,
+        eligibleDriverIds,
+        eligibleCarsCount: eligibleCars.length,
+      });
 
+      // ✅ ADD: Debug the tariff matching issue
       if (eligibleDriverIds.length === 0) {
-        // Try alternative approach with raw SQL as fallback
-        const rawResults = await this.dataSource.query(
-          `
-        SELECT DISTINCT c.driver_id
-        FROM cars c
-        INNER JOIN car_tariffs ct ON ct.car_id = c.id
-        INNER JOIN tariffs t ON t.id = ct.tariff_id
-        INNER JOIN drivers d ON d.id = c.driver_id
-        WHERE LOWER(t.name) = LOWER($1) AND c.is_active = true AND d.is_active = true
-        `,
-          [tariffType]
+        this.logger.warn(
+          "No eligible drivers found, debugging tariff issue...",
+          {
+            correlationId,
+            tariffType,
+          }
         );
 
-        const rawDriverIds = rawResults.map((r) => r.driver_id);
-
-        console.log(
-          `[DEBUG] STEP 1 (Raw SQL Fallback): Drivers eligible for tariff '${tariffType}'`,
-          rawDriverIds
+        // Check what tariffs exist that might match
+        const allMatchingTariffs = await this.dataSource.query(
+          "SELECT DISTINCT t.id, t.name FROM tariffs t WHERE LOWER(t.name) LIKE LOWER($1)",
+          [`%${tariffType}%`]
         );
 
-        if (rawDriverIds.length === 0) {
-          this.logger.warn(
-            `No drivers are eligible for tariff: ${tariffType}`,
-            {
-              correlationId,
-            }
-          );
-          return null;
-        }
+        this.logger.info("Similar tariff names found:", {
+          correlationId,
+          tariffType,
+          similarTariffs: allMatchingTariffs,
+        });
+
+        // Check if we have any cars for Driver 4 (the nearby one)
+        const driver4Cars = await this.dataSource.query(
+          `SELECT c.id, c.driver_id, t.name as tariff_name 
+         FROM cars c 
+         INNER JOIN car_tariffs ct ON ct.car_id = c.id 
+         INNER JOIN tariffs t ON t.id = ct.tariff_id 
+         WHERE c.driver_id = 4`
+        );
+
+        this.logger.info("Driver 4 car assignments:", {
+          correlationId,
+          driver4Cars,
+        });
       }
 
-      this.logger.info(
-        `Found ${eligibleDriverIds.length} drivers eligible for tariff "${tariffType}"`,
-        { correlationId, driverIds: eligibleDriverIds }
-      );
+      if (eligibleDriverIds.length === 0) {
+        this.logger.warn(`No drivers are eligible for tariff: ${tariffType}`, {
+          correlationId,
+        });
+        return null;
+      }
 
-      // QADAM 2: REDIS GEOSPATIAL DEBUG AND SEARCH
+      // Continue with geospatial search...
       const maxRadius = getMaxSearchRadius(tariffType);
       const searchKey = "drivers:geo";
 
-      // === REDIS GEOSPATIAL DEBUG SECTION ===
-      this.logger.info("=== REDIS GEOSPATIAL DEBUG ===", {
-        correlationId,
-        searchKey,
-        coordinates: { lat: pickupLat, lng: pickupLng },
-        maxRadius,
-      });
-
-      try {
-        // Check what's actually in Redis geo set
-        const allDriversInGeo = (await redisClient.sendCommand([
-          "ZRANGE",
-          searchKey,
-          "0",
-          "-1",
-          "WITHSCORES",
-        ])) as string[];
-        this.logger.info("All drivers in geo set:", {
-          correlationId,
-          driversInGeo: allDriversInGeo,
-          count: Array.isArray(allDriversInGeo) ? allDriversInGeo.length : 0,
-        });
-
-        // Check specific driver positions for eligible drivers
-        for (const driverId of eligibleDriverIds) {
-          const driverPosition = (await redisClient.sendCommand([
-            "GEOPOS",
-            searchKey,
-            driverId.toString(),
-          ])) as string[][];
-          this.logger.info(`Driver ${driverId} position in Redis:`, {
-            correlationId,
-            driverId,
-            position: driverPosition,
-          });
-        }
-
-        // Test the exact GEORADIUS query with distance info
-        const geoRadiusTest = (await redisClient.sendCommand([
-          "GEORADIUS",
-          searchKey,
-          pickupLng.toString(),
-          pickupLat.toString(),
-          maxRadius.toString(),
-          "m",
-          "WITHDIST",
-          "WITHCOORD",
-        ])) as string[][];
-        this.logger.info("GEORADIUS test result (with distance and coords):", {
-          correlationId,
-          result: geoRadiusTest,
-          resultCount: Array.isArray(geoRadiusTest) ? geoRadiusTest.length : 0,
-          queryUsed: `GEORADIUS ${searchKey} ${pickupLng} ${pickupLat} ${maxRadius} m WITHDIST WITHCOORD`,
-        });
-
-        // Also test with a very large radius to see if any drivers exist
-        const largeRadiusTest = (await redisClient.sendCommand([
-          "GEORADIUS",
-          searchKey,
-          pickupLng.toString(),
-          pickupLat.toString(),
-          "100000", // 100km
-          "m",
-          "WITHDIST",
-        ])) as string[][];
-        this.logger.info("Large radius test (100km):", {
-          correlationId,
-          result: largeRadiusTest,
-          resultCount: Array.isArray(largeRadiusTest)
-            ? largeRadiusTest.length
-            : 0,
-        });
-      } catch (debugError) {
-        this.logger.error("Redis debug commands failed:", {
-          correlationId,
-          error: debugError.message,
-          searchKey,
-        });
-      }
-
-      // === ACTUAL SEARCH ===
       const nearbyDriverIdsStr = await this.retryOperation(async () => {
         return await this.circuitBreaker.execute(async () => {
           const result = (await redisClient.sendCommand([
@@ -1059,14 +1558,6 @@ export class RidesService {
             "ASC",
           ])) as string[];
 
-          this.logger.info("GEORADIUS search completed:", {
-            correlationId,
-            searchKey,
-            maxRadius,
-            resultCount: result?.length || 0,
-            result,
-          });
-
           return result;
         }, correlationId);
       });
@@ -1076,25 +1567,18 @@ export class RidesService {
           correlationId,
           maxRadius,
           searchKey,
-          coordinates: { lat: pickupLat, lng: pickupLng },
-          eligibleDriverIds,
         });
         return null;
       }
 
       const nearbyDriverIds = nearbyDriverIdsStr.map((id) => Number(id));
 
-      console.log(
-        `[DEBUG] STEP 2: Drivers found nearby in Redis`,
-        nearbyDriverIds
-      );
-
-      // QADAM 3: INTERSECTION - Only keep candidates that are both nearby and eligible
+      // ✅ IMPORTANT: Filter intersection
       const finalCandidateIds = nearbyDriverIds.filter((id) =>
         eligibleDriverIds.includes(id)
       );
 
-      this.logger.info("Driver filtering results:", {
+      this.logger.info("Driver matching intersection results:", {
         correlationId,
         eligibleDriverIds,
         nearbyDriverIds,
@@ -1103,133 +1587,25 @@ export class RidesService {
       });
 
       if (finalCandidateIds.length === 0) {
+        // ✅ ENHANCED ERROR: Show why no intersection
         this.logger.warn(
-          "No eligible drivers found within the geographical radius after intersection",
+          "No intersection between eligible and nearby drivers",
           {
             correlationId,
-            tariff: tariffType,
-            eligibleCount: eligibleDriverIds.length,
-            nearbyCount: nearbyDriverIds.length,
+            eligibleDrivers: eligibleDriverIds,
+            nearbyDrivers: nearbyDriverIds,
+            suggestion:
+              "Check if nearby drivers have correct tariff assignments",
           }
         );
         return null;
       }
 
-      this.logger.info(
-        `Found ${finalCandidateIds.length} final candidates after filtering`,
-        { correlationId, candidates: finalCandidateIds }
-      );
-
-      // QADAM 4: STATUS CHECK AND SCORING WITH COMPREHENSIVE DEBUG
+      // Continue with status checking and driver locking...
       const candidatesWithScore: { id: number; score: number }[] = [];
-      const pipeline = redisClient.multi();
-
-      // Build pipeline commands
-      for (const driverId of finalCandidateIds) {
-        pipeline.get(RedisKeys.driverStatus(driverId));
-        pipeline.get(RedisKeys.driverRide(driverId));
-        pipeline.get(RedisKeys.driverAcceptedOffers(driverId));
-        pipeline.get(RedisKeys.driverTotalOffers(driverId));
-      }
-
-      const redisResults = await this.circuitBreaker.execute(
-        async () => await pipeline.exec(),
-        correlationId
-      );
-
-      // === COMPREHENSIVE REDIS PIPELINE DEBUG ===
-      this.logger.info("=== REDIS PIPELINE DEBUG ===", {
-        correlationId,
-        finalCandidateIds,
-        pipelineCommandsCount: finalCandidateIds.length * 4,
-        pipelineCommands: finalCandidateIds.map((driverId) => [
-          `GET ${RedisKeys.driverStatus(driverId)}`,
-          `GET ${RedisKeys.driverRide(driverId)}`,
-          `GET ${RedisKeys.driverAcceptedOffers(driverId)}`,
-          `GET ${RedisKeys.driverTotalOffers(driverId)}`,
-        ]),
-        redisResultsRaw: redisResults,
-        redisResultsLength: redisResults?.length || 0,
-        redisResultsType: typeof redisResults,
-      });
-
-      // ✅ NEW FIXED CODE:
-      // Replace the pipeline processing section (starting around line 614)
-      for (let i = 0; i < finalCandidateIds.length; i++) {
-        const driverId = finalCandidateIds[i];
-        const baseIndex = i * 4;
-
-        // Access the raw results directly
-        const status = redisResults?.[baseIndex] as string | null;
-        const currentRide = redisResults?.[baseIndex + 1] as string | null;
-        const acceptedStr = redisResults?.[baseIndex + 2] as string | null;
-        const totalStr = redisResults?.[baseIndex + 3] as string | null;
-
-        // Enhanced debug logging
-        console.log(`[DEBUG] Driver ${driverId} pipeline result analysis:`, {
-          driverId,
-          baseIndex,
-          rawResults: {
-            status,
-            currentRide,
-            acceptedStr,
-            totalStr,
-          },
-          statusCheck: {
-            isString: typeof status === "string",
-            isOnline: status === "online",
-            length: status?.length,
-            rawStatus: JSON.stringify(status),
-          },
-          correlationId,
-        });
-
-        this.logger.info(`Driver ${driverId} status check:`, {
-          correlationId,
-          driverId,
-          status,
-          is_online: status === "online",
-          isFree: !currentRide,
-        });
-
-        if (status !== "online" || currentRide) {
-          this.logger.info(`Driver ${driverId} filtered out:`, {
-            correlationId,
-            driverId,
-            reason:
-              status !== "online"
-                ? `status is '${status}' not 'online'`
-                : `has active ride: ${currentRide}`,
-          });
-          continue;
-        }
-
-        // Calculate score and add to candidates
-        const accepted = Number(acceptedStr) || 0;
-        const total = Number(totalStr) || 0;
-        const acceptanceRate = total > 0 ? accepted / total : 0.5;
-        const score = 1 + 2 * acceptanceRate;
-
-        candidatesWithScore.push({ id: driverId, score });
-
-        this.logger.info(`Driver ${driverId} added to candidates:`, {
-          correlationId,
-          driverId,
-          score,
-          accepted,
-          total,
-          acceptanceRate,
-        });
-      }
-      // Alternative approach - if the above doesn't work, try this simpler method:
-      // Replace the pipeline section with individual Redis calls for debugging:
-
-      // 🔧 FALLBACK SOLUTION - Replace pipeline with individual calls
-      // const candidatesWithScore: { id: number; score: number }[] = [];
 
       for (const driverId of finalCandidateIds) {
         try {
-          // Make individual Redis calls instead of pipeline
           const [status, currentRide, acceptedStr, totalStr] =
             await Promise.all([
               redisClient.get(RedisKeys.driverStatus(driverId)),
@@ -1238,27 +1614,16 @@ export class RidesService {
               redisClient.get(RedisKeys.driverTotalOffers(driverId)),
             ]);
 
-          console.log(`[DEBUG] Driver ${driverId} individual calls result:`, {
+          this.logger.info(`Driver ${driverId} availability check:`, {
+            correlationId,
             driverId,
             status,
-            statusType: typeof status,
             currentRide,
-            acceptedStr,
-            totalStr,
-            isOnline: status === "online",
-            correlationId,
-          });
-
-          this.logger.info(`Driver ${driverId} status check:`, {
-            correlationId,
-            driverId,
-            status,
-            is_online: status === "online",
-            isFree: !currentRide,
+            isAvailable: status === "online" && !currentRide,
           });
 
           if (status !== "online" || currentRide) {
-            this.logger.info(`Driver ${driverId} filtered out:`, {
+            this.logger.info(`Driver ${driverId} not available:`, {
               correlationId,
               driverId,
               reason:
@@ -1269,7 +1634,6 @@ export class RidesService {
             continue;
           }
 
-          // Calculate score
           const accepted = Number(acceptedStr) || 0;
           const total = Number(totalStr) || 0;
           const acceptanceRate = total > 0 ? accepted / total : 0.5;
@@ -1277,12 +1641,10 @@ export class RidesService {
 
           candidatesWithScore.push({ id: driverId, score });
 
-          this.logger.info(`Driver ${driverId} added to candidates:`, {
+          this.logger.info(`Driver ${driverId} added to final candidates:`, {
             correlationId,
             driverId,
             score,
-            accepted,
-            total,
             acceptanceRate,
           });
         } catch (error) {
@@ -1294,18 +1656,18 @@ export class RidesService {
           continue;
         }
       }
+
       if (candidatesWithScore.length === 0) {
-        this.logger.info(
-          "No available (online and free) drivers found from the final candidates.",
-          { correlationId }
-        );
+        this.logger.warn("No available drivers from final candidates", {
+          correlationId,
+          finalCandidateIds,
+        });
         return null;
       }
 
-      // Sort by best score first
+      // Sort by score and try to lock the best driver
       candidatesWithScore.sort((a, b) => b.score - a.score);
 
-      // QADAM 5: LOCK THE BEST CANDIDATE
       for (const candidate of candidatesWithScore) {
         const lockKey = `lock:driver:${candidate.id}`;
         try {
@@ -1315,47 +1677,36 @@ export class RidesService {
             continue;
           }
 
-          // Double-check after acquiring lock
-          const [statusCheck, currentRideCheck] =
-            await this.circuitBreaker.execute(async () => {
-              return await Promise.all([
-                redisClient.get(RedisKeys.driverStatus(candidate.id)),
-                redisClient.get(RedisKeys.driverRide(candidate.id)),
-              ]);
-            }, correlationId);
+          // Double-check availability after lock
+          const [statusCheck, currentRideCheck] = await Promise.all([
+            redisClient.get(RedisKeys.driverStatus(candidate.id)),
+            redisClient.get(RedisKeys.driverRide(candidate.id)),
+          ]);
 
           if (statusCheck === "online" && !currentRideCheck) {
-            this.logger.info(
-              `Successfully matched and locked driver ${candidate.id}`,
-              {
-                correlationId,
-                score: candidate.score,
-              }
-            );
+            this.logger.info(`Successfully matched driver ${candidate.id}`, {
+              correlationId,
+              driverId: candidate.id,
+              score: candidate.score,
+            });
             return { driverId: candidate.id, lockKey };
           } else {
             await releaseLock(lockKey, correlationId);
           }
         } catch (error) {
-          this.logger.warn(
-            `Error processing candidate driver ${candidate.id}`,
-            {
-              correlationId,
-              error: error.message,
-            }
-          );
+          this.logger.warn(`Error processing candidate ${candidate.id}:`, {
+            correlationId,
+            error: error.message,
+          });
           await releaseLock(lockKey, correlationId).catch(() => {});
           continue;
         }
       }
 
-      this.logger.warn(
-        "No drivers could be locked from the available candidates.",
-        { correlationId }
-      );
+      this.logger.warn("No drivers could be locked", { correlationId });
       return null;
     } catch (error) {
-      this.logger.error("Driver matching process failed", {
+      this.logger.error("Driver matching failed", {
         correlationId,
         error: error.message,
         stack: error.stack,
@@ -1392,328 +1743,348 @@ export class RidesService {
     }
   }
 
-  // private async sendRideRequestWithTimeout(
-  //   driverId: number,
-  //   ride: Ride,
-  //   clientId: number,
-  //   correlationId: string
-  // ): Promise<{ success: boolean; acknowledged: boolean }> {
-  //   return new Promise((resolve) => {
-  //     let acknowledged = false;
-  //     let responseTimeout: NodeJS.Timeout;
-
-  //     const cleanup = () => {
-  //       if (responseTimeout) clearTimeout(responseTimeout);
-  //     };
-
-  //     const timeoutMs = this.config.ackTimeoutMs || 30000;
-  //     responseTimeout = setTimeout(() => {
-  //       if (!acknowledged) {
-  //         acknowledged = true;
-  //         cleanup();
-  //         this.logger.warn("Driver response timeout", {
-  //           correlationId,
-  //           driverId,
-  //           rideId: ride.id,
-  //           timeoutMs,
-  //         });
-  //         resolve({ success: false, acknowledged: false });
-  //       }
-  //     }, timeoutMs);
-
-  //     // ✅ ENHANCED: Try multiple approaches to get socket server
-  //     let currentSocketServer = this.socketServer;
-
-  //     console.log("🔍 [RIDES SERVICE] Socket server check:", {
-  //       injectedServerExists: !!this.socketServer,
-  //       injectedServerType: this.socketServer?.constructor?.name,
-  //       correlationId,
-  //       timestamp: new Date().toISOString(),
-  //     });
-
-  //     // If injected server is null, try dynamic resolution
-  //     if (!currentSocketServer) {
-  //       this.logger.warn(
-  //         "⚠️ Injected socket server is null, trying dynamic resolution",
-  //         {
-  //           correlationId,
-  //         }
-  //       );
-  //       const dynamicInstance = getSocketInstance();
-  //       if (dynamicInstance) {
-  //         currentSocketServer = dynamicInstance;
-  //       }
-  //       console.log("🔍 [RIDES SERVICE] Dynamic resolution result:", {
-  //         dynamicServerExists: !!currentSocketServer,
-  //         dynamicServerType: currentSocketServer?.constructor?.name,
-  //         correlationId,
-  //       });
-  //     }
-
-  //     // Final check with detailed logging
-  //     if (!currentSocketServer) {
-  //       console.error(
-  //         "❌ [RIDES SERVICE] WebSocket server completely unavailable",
-  //         {
-  //           correlationId,
-  //           driverId,
-  //           rideId: ride.id,
-  //           injectedServer: !!this.socketServer,
-  //           dynamicServer: !!getSocketInstance(),
-  //           timestamp: new Date().toISOString(),
-  //         }
-  //       );
-
-  //       this.logger.error(
-  //         "WebSocket server not available - cannot send ride request",
-  //         {
-  //           correlationId,
-  //           driverId,
-  //           rideId: ride.id,
-  //         }
-  //       );
-
-  //       cleanup();
-  //       acknowledged = true;
-  //       resolve({ success: false, acknowledged: false });
-  //       return;
-  //     }
-
-  //     console.log("✅ [RIDES SERVICE] Using WebSocket server:", {
-  //       serverType: currentSocketServer.constructor.name,
-  //       serverMethods: Object.getOwnPropertyNames(
-  //         Object.getPrototypeOf(currentSocketServer)
-  //       ).slice(0, 10),
-  //       correlationId,
-  //       driverId,
-  //       rideId: ride.id,
-  //     });
-
-  //     this.logger.info("Sending ride request to driver", {
-  //       correlationId,
-  //       driverId,
-  //       rideId: ride.id,
-  //       serverAvailable: !!currentSocketServer,
-  //     });
-
-  //     // Create response channel
-  //     const responseChannel = `ride:${ride.id}:response`;
-
-  //     // Set up response listener
-  //     const handleDriverResponse = (response: {
-  //       rideId: number;
-  //       driverId: number;
-  //       accepted: boolean;
-  //       timestamp: number;
-  //     }) => {
-  //       console.log("📥 [RIDES SERVICE] Received driver response:", {
-  //         response,
-  //         expectedRideId: ride.id,
-  //         expectedDriverId: driverId,
-  //         correlationId,
-  //       });
-
-  //       if (
-  //         response.rideId === ride.id &&
-  //         response.driverId === driverId &&
-  //         !acknowledged
-  //       ) {
-  //         acknowledged = true;
-  //         cleanup();
-  //         currentSocketServer.off(responseChannel, handleDriverResponse);
-
-  //         this.logger.info("Received driver response", {
-  //           correlationId,
-  //           driverId,
-  //           rideId: ride.id,
-  //           accepted: response.accepted,
-  //         });
-
-  //         resolve({ success: response.accepted, acknowledged: true });
-  //       }
-  //     };
-
-  //     // Listen for response
-  //     currentSocketServer.on(responseChannel, handleDriverResponse);
-
-  //     // Send request to driver
-  //     const rideRequestData = {
-  //       rideId: ride.id,
-  //       correlationId,
-  //       pickup: {
-  //         lat: ride.pickup_latitude,
-  //         lng: ride.pickup_longitude,
-  //         address: ride.pickup_address,
-  //       },
-  //       destination: {
-  //         lat: ride.destination_latitude,
-  //         lng: ride.destination_longitude,
-  //         address: ride.destination_address,
-  //       },
-  //       estimatedFare: ride.estimated_fare,
-  //       tariff: ride.tariff_type,
-  //       clientId: clientId,
-  //       timestamp: Date.now(),
-  //       responseChannel,
-  //       expiresAt: Date.now() + timeoutMs,
-  //     };
-
-  //     console.log("📤 [RIDES SERVICE] Emitting ride request:", {
-  //       room: `driver:${driverId}`,
-  //       event: "ride:request",
-  //       rideId: ride.id,
-  //       correlationId,
-  //       timestamp: new Date().toISOString(),
-  //     });
-
-  //     try {
-  //       currentSocketServer
-  //         .to(`driver:${driverId}`)
-  //         .emit("ride:request", rideRequestData);
-
-  //       console.log("✅ [RIDES SERVICE] Ride request sent successfully", {
-  //         correlationId,
-  //         driverId,
-  //         rideId: ride.id,
-  //         room: `driver:${driverId}`,
-  //         responseChannel,
-  //       });
-
-  //       this.logger.info("Ride request sent to driver", {
-  //         correlationId,
-  //         driverId,
-  //         rideId: ride.id,
-  //         room: `driver:${driverId}`,
-  //         responseChannel,
-  //       });
-  //     } catch (emitError) {
-  //       console.error("❌ [RIDES SERVICE] Failed to emit ride request:", {
-  //         error: emitError.message,
-  //         correlationId,
-  //         driverId,
-  //         rideId: ride.id,
-  //       });
-
-  //       cleanup();
-  //       acknowledged = true;
-  //       resolve({ success: false, acknowledged: false });
-  //     }
-  //   });
-  // }
-
-  // Quick fix for your sendRideRequestWithTimeout method
-
-  // SOLUTION 1: Fix the sendRideRequestWithTimeout method in RidesService
-
-  private async sendRideRequestWithTimeout(
-    driverId: number,
-    ride: Ride,
-    clientId: number,
-    correlationId: string
-  ): Promise<{ success: boolean; acknowledged: boolean }> {
-    return new Promise((resolve) => {
-      let acknowledged = false;
-      let responseTimeout: NodeJS.Timeout;
-      let checkInterval: NodeJS.Timeout;
-
-      const cleanup = () => {
-        if (responseTimeout) clearTimeout(responseTimeout);
-        if (checkInterval) clearInterval(checkInterval);
-      };
-
-      const timeoutMs = this.config.ackTimeoutMs || 30000;
-
-      // Set timeout
-      responseTimeout = setTimeout(() => {
-        if (!acknowledged) {
-          acknowledged = true;
-          cleanup();
-          this.logger.warn("Driver response timeout", {
-            correlationId,
-            driverId,
-            rideId: ride.id,
-            timeoutMs,
-          });
-          resolve({ success: false, acknowledged: false });
-        }
-      }, timeoutMs);
-
-      // Get socket server
-      let currentSocketServer = this.socketServer;
-      if (!currentSocketServer) {
-        const dynamicInstance = getSocketInstance();
-        if (dynamicInstance) {
-          currentSocketServer = dynamicInstance;
-        }
-      }
-
-      if (!currentSocketServer) {
-        this.logger.error("WebSocket server not available", {
-          correlationId,
-          driverId,
-          rideId: ride.id,
+  private waitForRideConfirmation(
+    rideId: number,
+    timeoutMs: number
+  ): Promise<Ride> {
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+      const checkStatus = async () => {
+        const ride = await this.rideRepository.findOne({
+          where: { id: rideId },
+          relations: ["driver"],
         });
-        cleanup();
-        acknowledged = true;
-        resolve({ success: false, acknowledged: false });
+        if (!ride) {
+          return reject(
+            new ServiceError(
+              ServiceErrorType.RESOURCE_NOT_FOUND,
+              "Ride disappeared after creation"
+            )
+          );
+        }
+        if (
+          ride.status === RideStatus.ACCEPTED ||
+          ride.status === RideStatus.CANCELLED
+        ) {
+          return resolve(ride);
+        }
+        if (Date.now() - startTime > timeoutMs) {
+          await this.handleRideRejection(
+            ride.id,
+            ride.driver.id,
+            "Driver response timed out."
+          );
+          const timedOutRide = await this.rideRepository.findOne({
+            where: { id: rideId },
+          });
+          return resolve(timedOutRide!); // Resolve with the cancelled ride
+        }
+        setTimeout(checkStatus, 1000);
+      };
+      checkStatus();
+    });
+  }
+
+  private async handleDriverTimeout(
+    rideId: number,
+    driverId: number | undefined,
+    correlationId: string
+  ): Promise<void> {
+    try {
+      const ride = await this.rideRepository.findOne({ where: { id: rideId } });
+
+      if (!ride || ride.status !== RideStatus.PENDING) {
+        this.logger.warn("Cannot timeout ride, status changed", {
+          correlationId,
+          rideId,
+          currentStatus: ride?.status,
+        });
         return;
       }
 
-      // ✅ IMPROVED: Check for response more frequently
-      const checkForResponse = async () => {
-        if (acknowledged) return;
+      // Update ride status
+      ride.status = RideStatus.CANCELLED;
+      ride.cancellation_reason = "Driver response timeout";
+      ride.cancelled_at = new Date();
+      await this.rideRepository.save(ride);
 
+      // Clean up Redis
+      if (driverId) {
+        await this.rollbackRideAssignment(driverId, rideId, correlationId);
+      }
+
+      this.logger.info("Ride cancelled due to driver timeout", {
+        correlationId,
+        rideId,
+        driverId,
+      });
+    } catch (error) {
+      this.logger.error("Failed to handle driver timeout", {
+        correlationId,
+        rideId,
+        error: error.message,
+      });
+    }
+  }
+
+  private waitForDriverResponse(
+    rideId: number,
+    timeoutMs: number,
+    correlationId: string
+  ): Promise<Ride> {
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+      const pollInterval = 1000; // Check every second
+
+      this.logger.info("⏳ Starting to wait for driver response", {
+        correlationId,
+        rideId,
+        timeoutMs,
+        willTimeoutAt: new Date(Date.now() + timeoutMs).toISOString(),
+      });
+
+      const checkRideStatus = async () => {
         try {
-          const redisKey = `ride_response:${ride.id}`;
-          const responseData = await redisClient.get(redisKey);
+          const ride = await this.rideRepository.findOne({
+            where: { id: rideId },
+            relations: ["driver", "client"],
+          });
 
-          if (responseData) {
-            const response = JSON.parse(responseData);
-
-            console.log("📥 [RIDES SERVICE] Got response from Redis:", {
-              response,
-              expectedRideId: ride.id,
-              expectedDriverId: driverId,
+          if (!ride) {
+            this.logger.error("💥 Ride disappeared during polling", {
               correlationId,
+              rideId,
+            });
+            return reject(
+              new ServiceError(
+                ServiceErrorType.RESOURCE_NOT_FOUND,
+                "Ride disappeared",
+                correlationId
+              )
+            );
+          }
+
+          const elapsedTime = Date.now() - startTime;
+          const remainingTime = timeoutMs - elapsedTime;
+
+          this.logger.debug("🔍 Polling ride status", {
+            correlationId,
+            rideId,
+            currentStatus: ride.status,
+            elapsedTime,
+            remainingTime,
+            pollCount: Math.floor(elapsedTime / pollInterval),
+          });
+
+          // Success cases
+          if (ride.status === RideStatus.ACCEPTED) {
+            this.logger.info("🎉 Driver accepted the ride!", {
+              correlationId,
+              rideId,
+              driverId: ride.driver?.id,
+              acceptedAt: ride.accepted_at,
+              totalWaitTime: elapsedTime,
+            });
+            return resolve(ride);
+          }
+
+          if (ride.status === RideStatus.CANCELLED) {
+            this.logger.warn("❌ Driver rejected the ride", {
+              correlationId,
+              rideId,
+              reason: ride.cancellation_reason,
+              totalWaitTime: elapsedTime,
+            });
+            return resolve(ride);
+          }
+
+          // Timeout check
+          if (elapsedTime > timeoutMs) {
+            this.logger.warn("⏰ Driver response timeout, cancelling ride", {
+              correlationId,
+              rideId,
+              timeoutMs,
+              actualWaitTime: elapsedTime,
             });
 
-            if (
-              response.rideId === ride.id &&
-              response.driverId === driverId &&
-              !acknowledged
-            ) {
-              acknowledged = true;
-              cleanup();
+            await this.handleDriverTimeout(
+              rideId,
+              ride.driver?.id,
+              correlationId
+            );
 
-              // Clean up the response from Redis
-              await redisClient.del(redisKey);
+            const cancelledRide = await this.rideRepository.findOne({
+              where: { id: rideId },
+              relations: ["driver", "client"],
+            });
 
-              this.logger.info("✅ Driver response received", {
-                correlationId,
-                driverId,
-                rideId: ride.id,
-                accepted: response.accepted,
-                reason: response.reason,
-              });
-
-              resolve({ success: response.accepted, acknowledged: true });
-            }
+            return resolve(cancelledRide!);
           }
+
+          // Continue polling
+          setTimeout(checkRideStatus, pollInterval);
         } catch (error) {
-          this.logger.error("Error checking for ride response:", {
-            error: error.message,
+          this.logger.error("💥 Error while polling for driver response", {
             correlationId,
+            rideId,
+            error: error.message,
           });
+          reject(error);
         }
       };
 
-      // ✅ Check every 250ms instead of 1000ms for faster response
-      checkInterval = setInterval(checkForResponse, 250);
+      // Start polling immediately
+      checkRideStatus();
+    });
+  }
 
-      // Also check immediately
-      checkForResponse();
+  private async sendRideRequestToDriver(
+    driverId: number,
+    ride: Ride,
+    correlationId: string
+  ): Promise<void> {
+    try {
+      const socketServer = this.socketServer || getSocketInstance();
 
-      // Send the ride request
+      if (!socketServer) {
+        throw new ServiceError(
+          ServiceErrorType.SYSTEM_ERROR,
+          "WebSocket server not available",
+          correlationId
+        );
+      }
+
+      console.log("Current timestamp:", Date.now());
+      console.log("Current date:", new Date());
+      console.log("System time:", new Date().toISOString());
+
+      // ✅ FIXED: Validate and sanitize timeout configuration
+      let ackTimeout = this.config.ackTimeoutMs;
+
+      // Log the raw config value for debugging
+      this.logger.debug("Raw ackTimeoutMs from config", {
+        correlationId,
+        rawValue: ackTimeout,
+        type: typeof ackTimeout,
+        config: this.config,
+      });
+
+      // Convert to number and validate
+      ackTimeout = Number(ackTimeout);
+
+      if (!ackTimeout || isNaN(ackTimeout) || ackTimeout <= 0) {
+        this.logger.error("❌ Invalid ackTimeoutMs configuration", {
+          correlationId,
+          ackTimeoutMs: ackTimeout,
+          type: typeof ackTimeout,
+          config: this.config,
+        });
+        throw new ServiceError(
+          ServiceErrorType.SYSTEM_ERROR,
+          `Invalid timeout configuration: ${ackTimeout}`,
+          correlationId
+        );
+      }
+
+      // ✅ FIXED: Add reasonable bounds checking for timeout
+      const MAX_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes max
+      const MIN_TIMEOUT_MS = 1000; // 1 second min
+
+      if (ackTimeout > MAX_TIMEOUT_MS) {
+        this.logger.warn(
+          "⚠️ ackTimeoutMs exceeds maximum, capping to 5 minutes",
+          {
+            correlationId,
+            originalTimeout: ackTimeout,
+            cappedTimeout: MAX_TIMEOUT_MS,
+          }
+        );
+        ackTimeout = MAX_TIMEOUT_MS;
+      }
+
+      if (ackTimeout < MIN_TIMEOUT_MS) {
+        this.logger.warn("⚠️ ackTimeoutMs below minimum, setting to 1 second", {
+          correlationId,
+          originalTimeout: ackTimeout,
+          adjustedTimeout: MIN_TIMEOUT_MS,
+        });
+        ackTimeout = MIN_TIMEOUT_MS;
+      }
+
+      // ✅ SAFE: Create timestamps with validation
+      const currentTime = Date.now();
+
+      // Validate currentTime is reasonable
+      if (!currentTime || isNaN(currentTime) || currentTime < 0) {
+        throw new ServiceError(
+          ServiceErrorType.SYSTEM_ERROR,
+          "Failed to get valid current timestamp",
+          correlationId
+        );
+      }
+
+      // ✅ FIXED: Ensure arithmetic doesn't overflow
+      const expirationTime = currentTime + ackTimeout;
+
+      // Validate the result is still a valid timestamp
+      if (
+        !expirationTime ||
+        isNaN(expirationTime) ||
+        expirationTime < currentTime
+      ) {
+        this.logger.error("❌ Timestamp arithmetic overflow detected", {
+          correlationId,
+          currentTime,
+          ackTimeout,
+          expirationTime,
+        });
+        throw new ServiceError(
+          ServiceErrorType.SYSTEM_ERROR,
+          "Timestamp calculation overflow",
+          correlationId
+        );
+      }
+
+      // ✅ FIXED: Validate Date creation with bounds checking
+      let expirationISO: string;
+      try {
+        // JavaScript Date max safe value check
+        const MAX_SAFE_DATE = 8640000000000000; // JavaScript's Date limit
+
+        if (expirationTime > MAX_SAFE_DATE) {
+          throw new Error(
+            `Timestamp ${expirationTime} exceeds JavaScript Date limits`
+          );
+        }
+
+        const expirationDate = new Date(expirationTime);
+
+        if (isNaN(expirationDate.getTime())) {
+          throw new Error("Invalid date created from timestamp");
+        }
+
+        expirationISO = expirationDate.toISOString();
+
+        // Additional validation - ensure ISO string is reasonable
+        if (!expirationISO || expirationISO.length < 10) {
+          throw new Error("Invalid ISO string generated");
+        }
+      } catch (dateError) {
+        this.logger.error("❌ Failed to create expiration date", {
+          correlationId,
+          currentTime,
+          ackTimeout,
+          expirationTime,
+          dateError: dateError.message,
+        });
+        throw new ServiceError(
+          ServiceErrorType.SYSTEM_ERROR,
+          `Date creation failed: ${dateError.message}`,
+          correlationId
+        );
+      }
+
+      // ✅ SAFE: Build request data with validation
       const rideRequestData = {
         rideId: ride.id,
         correlationId,
@@ -1729,80 +2100,144 @@ export class RidesService {
         },
         estimatedFare: ride.estimated_fare,
         tariff: ride.tariff_type,
-        clientId: clientId,
-        timestamp: Date.now(),
-        responseChannel: `ride:${ride.id}:response`,
-        expiresAt: Date.now() + timeoutMs,
+        clientId: ride.client.id,
+        timestamp: currentTime,
+        expiresAt: expirationTime,
+        expiresAtISO: expirationISO,
+        timeoutMs: ackTimeout,
       };
 
-      console.log("📤 [RIDES SERVICE] Emitting ride request:", {
-        room: `driver:${driverId}`,
-        event: "ride:request",
-        rideId: ride.id,
+      this.logger.info("✅ Ride request data validated successfully", {
         correlationId,
-        timestamp: new Date().toISOString(),
+        rideId: ride.id,
+        driverId,
+        currentTime,
+        expirationTime,
+        expirationISO,
+        timeoutMs: ackTimeout,
       });
 
+      this.logger.info("Emitting ride request to driver", {
+        correlationId,
+        driverId,
+        rideId: ride.id,
+        room: `driver:${driverId}`,
+      });
+
+      // ✅ SAFE: Emit with error handling
       try {
-        currentSocketServer
+        socketServer
           .to(`driver:${driverId}`)
           .emit("ride:request", rideRequestData);
 
-        console.log("✅ [RIDES SERVICE] Ride request sent successfully", {
+        this.logger.info("✅ Ride request emitted successfully", {
           correlationId,
           driverId,
           rideId: ride.id,
-          room: `driver:${driverId}`,
         });
       } catch (emitError) {
-        console.error("❌ [RIDES SERVICE] Failed to emit ride request:", {
-          error: emitError.message,
+        this.logger.error("❌ Failed to emit ride request", {
           correlationId,
           driverId,
           rideId: ride.id,
+          error: emitError.message,
+          stack: emitError.stack,
         });
-
-        cleanup();
-        acknowledged = true;
-        resolve({ success: false, acknowledged: false });
+        throw new ServiceError(
+          ServiceErrorType.SYSTEM_ERROR,
+          `WebSocket emit failed: ${emitError.message}`,
+          correlationId
+        );
       }
-    });
-  }
-  // Add these helper methods for handling responses:
-
-  private async handleRideRejection(
-    rideId: number,
-    driverId: number,
-    reason?: string
-  ): Promise<void> {
-    const correlationId = randomUUID();
-
-    try {
-      // Release the driver lock
-      const lockKey = `lock:driver:${driverId}`;
-      await releaseLock(lockKey, correlationId);
-
-      // Clean up Redis state
-      await this.rollbackRideAssignment(driverId, rideId, correlationId);
-
-      this.logger.info("Ride rejection processed", {
-        correlationId,
-        rideId,
-        driverId,
-        reason,
-      });
-
-      // You could try to reassign to another driver here
-      // await this.reassignDriver(rideId, reason || "Driver declined");
     } catch (error) {
-      this.logger.error("Failed to handle ride rejection", {
+      this.logger.error("❌ sendRideRequestToDriver failed", {
         correlationId,
-        rideId,
         driverId,
+        rideId: ride.id,
         error: error.message,
+        stack: error.stack,
       });
+
+      // Re-throw ServiceError as-is, wrap others
+      if (error instanceof ServiceError) {
+        throw error;
+      }
+
+      throw new ServiceError(
+        ServiceErrorType.SYSTEM_ERROR,
+        `Send ride request failed: ${error.message}`,
+        correlationId
+      );
     }
   }
+
+  // Add these helper methods for handling responses:
+
+  // async handleRideRejection(
+  //   rideId: number,
+  //   driverId: number,
+  //   reason?: string
+  // ): Promise<void> {
+  //   const correlationId = randomUUID();
+
+  //   try {
+  //     // Release the driver lock
+  //     const lockKey = `lock:driver:${driverId}`;
+  //     await releaseLock(lockKey, correlationId);
+
+  //     // Clean up Redis state
+  //     await this.rollbackRideAssignment(driverId, rideId, correlationId);
+
+  //     this.logger.info("Ride rejection processed", {
+  //       correlationId,
+  //       rideId,
+  //       driverId,
+  //       reason,
+  //     });
+
+  //     // You could try to reassign to another driver here
+  //     // await this.reassignDriver(rideId, reason || "Driver declined");
+  //   } catch (error) {
+  //     this.logger.error("Failed to handle ride rejection", {
+  //       correlationId,
+  //       rideId,
+  //       driverId,
+  //       error: error.message,
+  //     });
+  //   }
+  // }
+
+  // async handleRideRejection(
+  //   rideId: number,
+  //   driverId: number,
+  //   reason?: string
+  // ): Promise<void> {
+  //   const correlationId = randomUUID();
+  //   this.logger.warn("Handling ride rejection", {
+  //     correlationId,
+  //     rideId,
+  //     driverId,
+  //     reason,
+  //   });
+  //   const ride = await this.rideRepository.findOne({ where: { id: rideId } });
+  //   if (!ride || ride.status !== RideStatus.PENDING) {
+  //     this.logger.warn("Cannot reject ride, it's not in PENDING state.", {
+  //       rideId,
+  //       currentStatus: ride?.status,
+  //     });
+  //     return;
+  //   }
+  //   ride.status = RideStatus.CANCELLED;
+  //   ride.cancellation_reason = reason || "Driver rejected";
+  //   ride.cancelled_at = new Date();
+  //   await this.rideRepository.save(ride);
+  //   await this.rollbackRideAssignment(driverId, rideId, correlationId);
+  //   await releaseLock(`lock:driver:${driverId}`, correlationId);
+  //   this.logger.info(
+  //     "Driver rejected ride, reassignment logic can be triggered here.",
+  //     { rideId }
+  //   );
+  // }
 
   private async checkRateLimit(
     clientId: number,
@@ -1824,7 +2259,277 @@ export class RidesService {
     }
   }
 
-  // Main create ride method with comprehensive error handling and monitoring
+  // // Main create ride method with comprehensive error handling and monitoring
+  // async create(dto: CreateRideDto, idempotencyKey?: string): Promise<Ride> {
+  //   const correlationId = randomUUID();
+  //   const timer = rideCreationDuration.startTimer();
+
+  //   let driverLockKey: string | null = null;
+  //   let driverId: number | null = null;
+  //   let queryRunner: QueryRunner | null = null;
+
+  //   this.logger.info("Starting ride creation", {
+  //     correlationId,
+  //     clientId: dto.client_id,
+  //     tariff: dto.tariff_type,
+  //     idempotencyKey,
+  //   });
+
+  //   if (idempotencyKey) {
+  //     const cachedRideId = await safeGet(`idempotency:${idempotencyKey}`);
+  //     if (cachedRideId) {
+  //       this.logger.info("Idempotency key already processed", {
+  //         correlationId,
+  //         idempotencyKey,
+  //       });
+  //       const ride = await this.rideRepository.findOne({
+  //         where: { id: +cachedRideId },
+  //       });
+  //       if (ride) return ride;
+  //     }
+  //   }
+
+  //   try {
+  //     // Step 1: Rate limiting
+  //     await this.checkRateLimit(dto.client_id, correlationId);
+
+  //     // Step 2: Input validation
+  //     await this.validateCreateRideDto(dto, correlationId);
+
+  //     // Step 3: Find and lock driver OUTSIDE transaction
+  //     const driverMatch = await this.getNearestAvailableDriver(
+  //       dto.pickup_latitude,
+  //       dto.pickup_longitude,
+  //       dto.tariff_type,
+  //       correlationId
+  //     );
+
+  //     if (!driverMatch) {
+  //       rideCreationCounter.inc({
+  //         status: "failed",
+  //         tariff_type: dto.tariff_type,
+  //       });
+  //       throw new ServiceError(
+  //         ServiceErrorType.DRIVER_NOT_AVAILABLE,
+  //         "No available drivers nearby",
+  //         correlationId
+  //       );
+  //     }
+
+  //     driverId = driverMatch.driverId;
+  //     driverLockKey = driverMatch.lockKey;
+
+  //     this.logger.info("Driver matched and locked", {
+  //       correlationId,
+  //       driverId,
+  //     });
+
+  //     // Step 4: Execute database transaction with proper rollback
+  //     queryRunner = this.dataSource.createQueryRunner();
+  //     await queryRunner.connect();
+  //     await queryRunner.startTransaction();
+
+  //     try {
+  //       const client = await queryRunner.manager.findOne(Client, {
+  //         where: { id: dto.client_id },
+  //       });
+
+  //       if (!client) {
+  //         throw new ServiceError(
+  //           ServiceErrorType.RESOURCE_NOT_FOUND,
+  //           "Client not found",
+  //           correlationId
+  //         );
+  //       }
+
+  //       const driver = await queryRunner.manager.findOne(Driver, {
+  //         where: { id: driverId },
+  //       });
+
+  //       if (!driver) {
+  //         throw new ServiceError(
+  //           ServiceErrorType.RESOURCE_NOT_FOUND,
+  //           "Matched driver not found in database",
+  //           correlationId
+  //         );
+  //       }
+
+  //       // Calculate fare
+  //       const estimatedFare = await this.fareCalculator.calculateFare(
+  //         dto.tariff_type,
+  //         dto.service_area_id,
+  //         dto.estimated_distance ?? 0,
+  //         dto.estimated_duration_minutes ?? 0
+  //       );
+
+  //       // Create ride entity
+  //       const ride = queryRunner.manager.create(Ride, {
+  //         client: { id: dto.client_id },
+  //         driver: { id: driver.id },
+  //         pickup_latitude: dto.pickup_latitude,
+  //         pickup_longitude: dto.pickup_longitude,
+  //         pickup_address: dto.pickup_address,
+  //         destination_latitude: dto.destination_latitude,
+  //         destination_longitude: dto.destination_longitude,
+  //         destination_address: dto.destination_address,
+  //         estimated_distance: dto.estimated_distance,
+  //         estimated_duration_minutes: dto.estimated_duration_minutes,
+  //         estimated_fare: estimatedFare,
+  //         payment_method: dto.payment_method,
+  //         promo_code_id: dto.promo_code_id,
+  //         discount_amount: dto.discount_amount,
+  //         tariff_type: dto.tariff_type ?? TariffType.ECONOMY,
+  //         requested_at: new Date(),
+  //         status: RideStatus.PENDING,
+  //       });
+
+  //       const savedRide = await queryRunner.manager.save(ride);
+  //       await queryRunner.commitTransaction();
+
+  //       this.logger.info("Ride saved to database", {
+  //         correlationId,
+  //         rideId: savedRide.id,
+  //       });
+
+  //       // Step 5: Update Redis state with circuit breaker
+  //       await this.circuitBreaker.execute(async () => {
+  //         const pipeline = redisClient.multi();
+
+  //         pipeline.set(
+  //           RedisKeys.driverRide(driverId!),
+  //           savedRide.id.toString(),
+  //           { EX: this.config.driverRideTtl }
+  //         );
+
+  //         pipeline.set(RedisKeys.rideStatus(savedRide.id), RideStatus.PENDING, {
+  //           EX: this.config.rideStatusTtl,
+  //         });
+
+  //         pipeline.incr(RedisKeys.driverTotalOffers(driverId!));
+
+  //         await pipeline.exec();
+  //       }, correlationId);
+
+  //       this.logger.info("Redis state updated", {
+  //         correlationId,
+  //         rideId: savedRide.id,
+  //         driverId,
+  //       });
+
+  //       // Step 6: Send notification to driver
+  //       const ackResult = await this.sendRideRequestWithTimeout(
+  //         driverId,
+  //         savedRide,
+  //         dto.client_id,
+  //         correlationId
+  //       );
+
+  //       if (!ackResult.success) {
+  //         // Rollback Redis state
+  //         await this.rollbackRideAssignment(
+  //           driverId,
+  //           savedRide.id,
+  //           correlationId
+  //         );
+
+  //         if (!ackResult.acknowledged) {
+  //           throw new ServiceError(
+  //             ServiceErrorType.TIMEOUT_ERROR,
+  //             "Driver did not respond in time",
+  //             correlationId
+  //           );
+  //         } else {
+  //           throw new ServiceError(
+  //             ServiceErrorType.DRIVER_NOT_AVAILABLE,
+  //             "Driver rejected the ride request",
+  //             correlationId
+  //           );
+  //         }
+  //       }
+
+  //       if (idempotencyKey) {
+  //         await safeSet(
+  //           `idempotency:${idempotencyKey}`,
+  //           savedRide.id.toString(),
+  //           86400
+  //         );
+  //       }
+
+  //       this.logger.info("Ride creation completed successfully", {
+  //         correlationId,
+  //         rideId: savedRide.id,
+  //         driverId,
+  //       });
+
+  //       rideCreationCounter.inc({
+  //         status: "success",
+  //         tariff_type: dto.tariff_type,
+  //       });
+  //       return savedRide;
+  //     } catch (dbError) {
+  //       if (queryRunner.isTransactionActive) {
+  //         await queryRunner.rollbackTransaction();
+  //         this.logger.warn("Database transaction rolled back", {
+  //           correlationId,
+  //           error: dbError.message,
+  //         });
+  //       }
+  //       throw dbError;
+  //     }
+  //   } catch (error) {
+  //     this.logger.error("Ride creation failed", {
+  //       correlationId,
+  //       error: error.message,
+  //       stack: error.stack,
+  //       driverId,
+  //     });
+
+  //     // Cleanup Redis state on any error
+  //     if (driverId !== null) {
+  //       await this.rollbackRideAssignment(driverId, 0, correlationId);
+  //     }
+
+  //     rideCreationCounter.inc({
+  //       status: "failed",
+  //       tariff_type: dto.tariff_type,
+  //     });
+
+  //     // Re-throw as appropriate exception type
+  //     if (error instanceof ServiceError) {
+  //       throw this.convertServiceErrorToNestException(error);
+  //     }
+
+  //     throw new InternalServerErrorException(
+  //       "Ride creation failed due to internal error",
+  //       error.message
+  //     );
+  //   } finally {
+  //     // Always release driver lock and close query runner
+  //     if (driverLockKey && driverId) {
+  //       try {
+  //         const released = await releaseLock(driverLockKey, correlationId);
+  //         this.logger.info("Driver lock released", {
+  //           correlationId,
+  //           driverId,
+  //           released,
+  //         });
+  //       } catch (lockError) {
+  //         this.logger.error("Failed to release driver lock", {
+  //           correlationId,
+  //           driverId,
+  //           error: lockError.message,
+  //         });
+  //       }
+  //     }
+
+  //     if (queryRunner) {
+  //       await queryRunner.release();
+  //     }
+
+  //     timer();
+  //   }
+  // }
+
   async create(dto: CreateRideDto, idempotencyKey?: string): Promise<Ride> {
     const correlationId = randomUUID();
     const timer = rideCreationDuration.startTimer();
@@ -1840,28 +2545,11 @@ export class RidesService {
       idempotencyKey,
     });
 
-    if (idempotencyKey) {
-      const cachedRideId = await safeGet(`idempotency:${idempotencyKey}`);
-      if (cachedRideId) {
-        this.logger.info("Idempotency key already processed", {
-          correlationId,
-          idempotencyKey,
-        });
-        const ride = await this.rideRepository.findOne({
-          where: { id: +cachedRideId },
-        });
-        if (ride) return ride;
-      }
-    }
-
     try {
-      // Step 1: Rate limiting
+      // Steps 1-3: Rate limiting, validation, driver matching (same as before)
       await this.checkRateLimit(dto.client_id, correlationId);
-
-      // Step 2: Input validation
       await this.validateCreateRideDto(dto, correlationId);
 
-      // Step 3: Find and lock driver OUTSIDE transaction
       const driverMatch = await this.getNearestAvailableDriver(
         dto.pickup_latitude,
         dto.pickup_longitude,
@@ -1870,10 +2558,6 @@ export class RidesService {
       );
 
       if (!driverMatch) {
-        rideCreationCounter.inc({
-          status: "failed",
-          tariff_type: dto.tariff_type,
-        });
         throw new ServiceError(
           ServiceErrorType.DRIVER_NOT_AVAILABLE,
           "No available drivers nearby",
@@ -1884,172 +2568,105 @@ export class RidesService {
       driverId = driverMatch.driverId;
       driverLockKey = driverMatch.lockKey;
 
-      this.logger.info("Driver matched and locked", {
-        correlationId,
-        driverId,
-      });
-
-      // Step 4: Execute database transaction with proper rollback
+      // Step 4: Create ride in database (same as before)
       queryRunner = this.dataSource.createQueryRunner();
       await queryRunner.connect();
       await queryRunner.startTransaction();
 
-      try {
-        const client = await queryRunner.manager.findOne(Client, {
-          where: { id: dto.client_id },
+      const estimatedFare = await this.fareCalculator.calculateFare(
+        dto.tariff_type,
+        dto.service_area_id,
+        dto.estimated_distance ?? 0,
+        dto.estimated_duration_minutes ?? 0
+      );
+
+      const ride = queryRunner.manager.create(Ride, {
+        client: { id: dto.client_id },
+        driver: { id: driverId },
+        pickup_latitude: dto.pickup_latitude,
+        pickup_longitude: dto.pickup_longitude,
+        pickup_address: dto.pickup_address,
+        destination_latitude: dto.destination_latitude,
+        destination_longitude: dto.destination_longitude,
+        destination_address: dto.destination_address,
+        estimated_distance: dto.estimated_distance,
+        estimated_duration_minutes: dto.estimated_duration_minutes,
+        estimated_fare: estimatedFare,
+        payment_method: dto.payment_method,
+        promo_code_id: dto.promo_code_id,
+        discount_amount: dto.discount_amount,
+        tariff_type: dto.tariff_type ?? TariffType.ECONOMY,
+        status: RideStatus.PENDING,
+      });
+
+      const savedRide = await queryRunner.manager.save(ride);
+      await queryRunner.commitTransaction();
+
+      // Step 5: Update Redis state
+      await this.circuitBreaker.execute(async () => {
+        const pipeline = redisClient.multi();
+        pipeline.set(RedisKeys.driverRide(driverId!), savedRide.id.toString(), {
+          EX: this.config.driverRideTtl,
         });
-
-        if (!client) {
-          throw new ServiceError(
-            ServiceErrorType.RESOURCE_NOT_FOUND,
-            "Client not found",
-            correlationId
-          );
-        }
-
-        const driver = await queryRunner.manager.findOne(Driver, {
-          where: { id: driverId },
+        pipeline.set(RedisKeys.rideStatus(savedRide.id), RideStatus.PENDING, {
+          EX: this.config.rideStatusTtl,
         });
+        pipeline.incr(RedisKeys.driverTotalOffers(driverId!));
+        await pipeline.exec();
+      }, correlationId);
 
-        if (!driver) {
-          throw new ServiceError(
-            ServiceErrorType.RESOURCE_NOT_FOUND,
-            "Matched driver not found in database",
-            correlationId
-          );
-        }
-
-        // Calculate fare
-        const estimatedFare = await this.fareCalculator.calculateFare(
-          dto.tariff_type,
-          dto.service_area_id,
-          dto.estimated_distance ?? 0,
-          dto.estimated_duration_minutes ?? 0
-        );
-
-        // Create ride entity
-        const ride = queryRunner.manager.create(Ride, {
-          client: { id: dto.client_id },
-          driver: { id: driver.id },
-          pickup_latitude: dto.pickup_latitude,
-          pickup_longitude: dto.pickup_longitude,
-          pickup_address: dto.pickup_address,
-          destination_latitude: dto.destination_latitude,
-          destination_longitude: dto.destination_longitude,
-          destination_address: dto.destination_address,
-          estimated_distance: dto.estimated_distance,
-          estimated_duration_minutes: dto.estimated_duration_minutes,
-          estimated_fare: estimatedFare,
-          payment_method: dto.payment_method,
-          promo_code_id: dto.promo_code_id,
-          discount_amount: dto.discount_amount,
-          tariff_type: dto.tariff_type ?? TariffType.ECONOMY,
-          requested_at: new Date(),
-          status: RideStatus.PENDING,
-        });
-
-        const savedRide = await queryRunner.manager.save(ride);
-        await queryRunner.commitTransaction();
-
-        this.logger.info("Ride saved to database", {
-          correlationId,
-          rideId: savedRide.id,
-        });
-
-        // Step 5: Update Redis state with circuit breaker
-        await this.circuitBreaker.execute(async () => {
-          const pipeline = redisClient.multi();
-
-          pipeline.set(
-            RedisKeys.driverRide(driverId!),
-            savedRide.id.toString(),
-            { EX: this.config.driverRideTtl }
-          );
-
-          pipeline.set(RedisKeys.rideStatus(savedRide.id), RideStatus.PENDING, {
-            EX: this.config.rideStatusTtl,
-          });
-
-          pipeline.incr(RedisKeys.driverTotalOffers(driverId!));
-
-          await pipeline.exec();
-        }, correlationId);
-
-        this.logger.info("Redis state updated", {
-          correlationId,
-          rideId: savedRide.id,
-          driverId,
-        });
-
-        // Step 6: Send notification to driver
-        const ackResult = await this.sendRideRequestWithTimeout(
-          driverId,
-          savedRide,
-          dto.client_id,
-          correlationId
-        );
-
-        if (!ackResult.success) {
-          // Rollback Redis state
-          await this.rollbackRideAssignment(
-            driverId,
-            savedRide.id,
-            correlationId
-          );
-
-          if (!ackResult.acknowledged) {
-            throw new ServiceError(
-              ServiceErrorType.TIMEOUT_ERROR,
-              "Driver did not respond in time",
-              correlationId
-            );
-          } else {
-            throw new ServiceError(
-              ServiceErrorType.DRIVER_NOT_AVAILABLE,
-              "Driver rejected the ride request",
-              correlationId
-            );
-          }
-        }
-
-        if (idempotencyKey) {
-          await safeSet(
-            `idempotency:${idempotencyKey}`,
-            savedRide.id.toString(),
-            86400
-          );
-        }
-
-        this.logger.info("Ride creation completed successfully", {
-          correlationId,
-          rideId: savedRide.id,
-          driverId,
-        });
-
-        rideCreationCounter.inc({
-          status: "success",
-          tariff_type: dto.tariff_type,
-        });
-        return savedRide;
-      } catch (dbError) {
-        if (queryRunner.isTransactionActive) {
-          await queryRunner.rollbackTransaction();
-          this.logger.warn("Database transaction rolled back", {
-            correlationId,
-            error: dbError.message,
-          });
-        }
-        throw dbError;
-      }
-    } catch (error) {
-      this.logger.error("Ride creation failed", {
+      // Step 6: Send request and wait for response
+      this.logger.info("Sending ride request to driver", {
         correlationId,
-        error: error.message,
-        stack: error.stack,
+        rideId: savedRide.id,
         driverId,
       });
 
-      // Cleanup Redis state on any error
+      await this.sendRideRequestToDriver(driverId, savedRide, correlationId);
+
+      // Wait for driver response (database polling)
+      const finalRide = await this.waitForDriverResponse(
+        savedRide.id,
+        this.config.ackTimeoutMs,
+        correlationId
+      );
+
+      if (finalRide.status === RideStatus.CANCELLED) {
+        throw new ServiceError(
+          ServiceErrorType.DRIVER_NOT_AVAILABLE,
+          finalRide.cancellation_reason || "Driver declined the ride",
+          correlationId
+        );
+      }
+
+      // Success!
+      if (idempotencyKey) {
+        await safeSet(
+          `idempotency:${idempotencyKey}`,
+          finalRide.id.toString(),
+          86400
+        );
+      }
+
+      this.logger.info("Ride creation completed successfully", {
+        correlationId,
+        rideId: finalRide.id,
+        status: finalRide.status,
+      });
+
+      rideCreationCounter.inc({
+        status: "success",
+        tariff_type: dto.tariff_type,
+      });
+      return finalRide;
+    } catch (error) {
+      // Error handling (same as before)
+      this.logger.error("Ride creation failed", {
+        correlationId,
+        error: error.message,
+        driverId,
+      });
+
       if (driverId !== null) {
         await this.rollbackRideAssignment(driverId, 0, correlationId);
       }
@@ -2059,38 +2676,20 @@ export class RidesService {
         tariff_type: dto.tariff_type,
       });
 
-      // Re-throw as appropriate exception type
       if (error instanceof ServiceError) {
         throw this.convertServiceErrorToNestException(error);
       }
-
       throw new InternalServerErrorException(
-        "Ride creation failed due to internal error",
-        error.message
+        "Ride creation failed due to internal error"
       );
     } finally {
-      // Always release driver lock and close query runner
+      // Cleanup (same as before)
       if (driverLockKey && driverId) {
-        try {
-          const released = await releaseLock(driverLockKey, correlationId);
-          this.logger.info("Driver lock released", {
-            correlationId,
-            driverId,
-            released,
-          });
-        } catch (lockError) {
-          this.logger.error("Failed to release driver lock", {
-            correlationId,
-            driverId,
-            error: lockError.message,
-          });
-        }
+        await releaseLock(driverLockKey, correlationId);
       }
-
       if (queryRunner) {
         await queryRunner.release();
       }
-
       timer();
     }
   }
@@ -2152,10 +2751,23 @@ export class RidesService {
   async acceptRide(rideId: number, driverId: number): Promise<Ride> {
     const correlationId = randomUUID();
 
-    this.logger.info("Processing ride acceptance", {
+    // --- ✅ ADD THIS LOGGING BLOCK ---
+    console.log(
+      `[ACCEPT RIDE] Service method called for Ride ID: ${rideId} by Driver ID: ${driverId}`,
+      {
+        correlationId,
+        rideId,
+        driverId,
+        timestamp: new Date().toISOString(),
+      }
+    );
+    // --- END OF LOGGING BLOCK ---
+
+    this.logger.info("🎯 Processing ride acceptance", {
       correlationId,
       rideId,
       driverId,
+      timestamp: new Date().toISOString(),
     });
 
     try {
@@ -2172,6 +2784,14 @@ export class RidesService {
         );
       }
 
+      this.logger.info("📊 Current ride state before acceptance:", {
+        correlationId,
+        rideId,
+        currentStatus: ride.status,
+        assignedDriverId: ride.driver?.id,
+        requestingDriverId: driverId,
+      });
+
       if (ride.status !== RideStatus.PENDING) {
         throw new ServiceError(
           ServiceErrorType.VALIDATION_ERROR,
@@ -2183,18 +2803,27 @@ export class RidesService {
       if (ride.driver?.id !== driverId) {
         throw new ServiceError(
           ServiceErrorType.PERMISSION_DENIED,
-          "You are not assigned to this ride",
+          `Driver ${driverId} is not assigned to ride ${rideId}. Assigned driver: ${ride.driver?.id}`,
           correlationId
         );
       }
 
-      // Update ride status
+      // ✅ CRITICAL: Update ride status in database
       ride.status = RideStatus.ACCEPTED;
       ride.accepted_at = new Date();
 
       const updatedRide = await this.rideRepository.save(ride);
 
-      // Update Redis state atomically
+      this.logger.info("✅ Database updated - Ride accepted successfully", {
+        correlationId,
+        rideId,
+        driverId,
+        oldStatus: "PENDING",
+        newStatus: updatedRide.status,
+        acceptedAt: updatedRide.accepted_at,
+      });
+
+      // Update Redis state
       await this.circuitBreaker.execute(async () => {
         const pipeline = redisClient.multi();
         pipeline.setEx(
@@ -2204,31 +2833,22 @@ export class RidesService {
         );
         pipeline.incr(RedisKeys.driverAcceptedOffers(driverId));
         await pipeline.exec();
-      }, correlationId);
 
-      // Notify client
-      if (ride.client?.id) {
-        this.socketServer.emit(`rideAccepted:${ride.client.id}`, {
-          rideId: ride.id,
-          driverId: driverId,
-          estimatedArrival: ride.estimated_duration_minutes,
+        this.logger.info("✅ Redis updated for ride acceptance", {
           correlationId,
+          rideId,
+          driverId,
         });
-      }
-
-      this.logger.info("Ride accepted successfully", {
-        correlationId,
-        rideId,
-        driverId,
-      });
+      }, correlationId);
 
       return updatedRide;
     } catch (error) {
-      this.logger.error("Ride acceptance failed", {
+      this.logger.error("❌ Ride acceptance failed", {
         correlationId,
         rideId,
         driverId,
         error: error.message,
+        stack: error.stack,
       });
 
       if (error instanceof ServiceError) {
@@ -3235,6 +3855,95 @@ export class RidesService {
     }
   }
 
+  async handleRideRejection(
+    rideId: number,
+    driverId: number,
+    reason?: string
+  ): Promise<void> {
+    const correlationId = randomUUID();
+
+    this.logger.warn("⚠️ Handling ride rejection", {
+      correlationId,
+      rideId,
+      driverId,
+      reason,
+    });
+
+    try {
+      const ride = await this.rideRepository.findOne({
+        where: { id: rideId },
+        relations: ["driver"],
+      });
+
+      if (!ride) {
+        this.logger.warn("Ride not found for rejection", { rideId });
+        return;
+      }
+
+      this.logger.info("📊 Current ride state before rejection:", {
+        correlationId,
+        rideId,
+        currentStatus: ride.status,
+        assignedDriverId: ride.driver?.id,
+        rejectingDriverId: driverId,
+      });
+
+      if (ride.status !== RideStatus.PENDING) {
+        this.logger.warn("Cannot reject ride, not in PENDING state", {
+          rideId,
+          currentStatus: ride.status,
+        });
+        return;
+      }
+
+      if (ride.driver?.id !== driverId) {
+        this.logger.warn("Driver not assigned to this ride", {
+          rideId,
+          expectedDriverId: ride.driver?.id,
+          actualDriverId: driverId,
+        });
+        return;
+      }
+
+      // ✅ CRITICAL: Update ride status in database
+      ride.status = RideStatus.CANCELLED;
+      ride.cancellation_reason = reason || "Driver rejected";
+      ride.cancelled_at = new Date();
+
+      const updatedRide = await this.rideRepository.save(ride);
+
+      this.logger.info("✅ Database updated - Ride rejected successfully", {
+        correlationId,
+        rideId,
+        driverId,
+        oldStatus: "PENDING",
+        newStatus: updatedRide.status,
+        cancelledAt: updatedRide.cancelled_at,
+        reason: updatedRide.cancellation_reason,
+      });
+
+      // Clean up Redis
+      await this.rollbackRideAssignment(driverId, rideId, correlationId);
+
+      this.logger.info("✅ Ride rejection processed successfully", {
+        correlationId,
+        rideId,
+        driverId,
+        reason,
+      });
+
+      // Optional: Trigger automatic reassignment logic here
+      // await this.tryReassignDriver(rideId, reason);
+    } catch (error) {
+      this.logger.error("❌ Failed to handle ride rejection", {
+        correlationId,
+        rideId,
+        driverId,
+        error: error.message,
+      });
+    }
+  }
+
   /**
    * Handle ride rejection by driver
    */
@@ -3283,4 +3992,278 @@ export class RidesService {
   //     });
   //   }
   // }
+
+  //=================== WILL BE DELETE
+
+  /**
+   * Clear a driver's current ride assignment (useful for testing/debugging)
+   */
+  async clearDriverRide(driverId: number): Promise<{
+    success: boolean;
+    message: string;
+    clearedData: any;
+  }> {
+    const correlationId = randomUUID();
+
+    this.logger.info("🧹 Clearing driver ride assignment", {
+      correlationId,
+      driverId,
+    });
+
+    try {
+      // Get current state before clearing
+      const [currentRide, currentStatus] = await Promise.all([
+        redisClient.get(RedisKeys.driverRide(driverId)),
+        redisClient.get(RedisKeys.driverStatus(driverId)),
+      ]);
+
+      // Clear Redis state
+      const pipeline = redisClient.multi();
+      pipeline.del(RedisKeys.driverRide(driverId));
+      pipeline.set(RedisKeys.driverStatus(driverId), "online", { EX: 86400 });
+      await pipeline.exec();
+
+      const clearedData = {
+        previousRide: currentRide,
+        previousStatus: currentStatus,
+        newStatus: "online",
+      };
+
+      this.logger.info("✅ Driver ride cleared successfully", {
+        correlationId,
+        driverId,
+        clearedData,
+      });
+
+      return {
+        success: true,
+        message: `Driver ${driverId} cleared and set to online`,
+        clearedData,
+      };
+    } catch (error) {
+      this.logger.error("❌ Failed to clear driver ride", {
+        correlationId,
+        driverId,
+        error: error.message,
+      });
+
+      return {
+        success: false,
+        message: `Failed to clear driver ${driverId}: ${error.message}`,
+        clearedData: null,
+      };
+    }
+  }
+
+  /**
+   * Get detailed driver status and availability
+   */
+  async getDriverStatus(driverId: number): Promise<{
+    driverId: number;
+    status: string | null;
+    currentRide: string | null;
+    location: any;
+    acceptedOffers: number;
+    totalOffers: number;
+    acceptanceRate: number | null;
+    isAvailable: boolean;
+  }> {
+    const correlationId = randomUUID();
+
+    try {
+      // Get all driver data from Redis
+      const [status, currentRide, acceptedStr, totalStr, locationStr] =
+        await Promise.all([
+          redisClient.get(RedisKeys.driverStatus(driverId)),
+          redisClient.get(RedisKeys.driverRide(driverId)),
+          redisClient.get(RedisKeys.driverAcceptedOffers(driverId)),
+          redisClient.get(RedisKeys.driverTotalOffers(driverId)),
+          redisClient.get(`driver:${driverId}:location`),
+        ]);
+
+      // Get location from geo set
+      const geoPosition = await redisClient.geoPos(
+        "drivers:geo",
+        driverId.toString()
+      );
+
+      const accepted = parseInt(acceptedStr || "0", 10);
+      const total = parseInt(totalStr || "0", 10);
+      const acceptanceRate = total > 0 ? accepted / total : null;
+
+      const result = {
+        driverId,
+        status,
+        currentRide,
+        location: {
+          detailed: locationStr ? JSON.parse(locationStr) : null,
+          geo: geoPosition?.[0] || null,
+        },
+        acceptedOffers: accepted,
+        totalOffers: total,
+        acceptanceRate,
+        isAvailable: status === "online" && !currentRide,
+      };
+
+      this.logger.info("📊 Driver status retrieved", {
+        correlationId,
+        driverId,
+        result,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error("❌ Failed to get driver status", {
+        correlationId,
+        driverId,
+        error: error.message,
+      });
+
+      return {
+        driverId,
+        status: null,
+        currentRide: null,
+        location: null,
+        acceptedOffers: 0,
+        totalOffers: 0,
+        acceptanceRate: null,
+        isAvailable: false,
+      };
+    }
+  }
+
+  /**
+   * Reset driver to available state (clears ride, sets online, updates location)
+   */
+  async resetDriverToAvailable(
+    driverId: number,
+    location?: { lat: number; lng: number }
+  ): Promise<{
+    success: boolean;
+    message: string;
+    driverStatus: any;
+  }> {
+    const correlationId = randomUUID();
+
+    this.logger.info("🔄 Resetting driver to available state", {
+      correlationId,
+      driverId,
+      location,
+    });
+
+    try {
+      // Clear current state and set to available
+      const pipeline = redisClient.multi();
+
+      // Clear ride assignment
+      pipeline.del(RedisKeys.driverRide(driverId));
+
+      // Set as online
+      pipeline.set(RedisKeys.driverStatus(driverId), "online", { EX: 86400 });
+
+      await pipeline.exec();
+
+      // Set location if provided
+      if (location) {
+        await redisClient.geoAdd("drivers:geo", {
+          longitude: location.lng,
+          latitude: location.lat,
+          member: driverId.toString(),
+        });
+
+        const locationData = {
+          lat: location.lat,
+          lng: location.lng,
+          timestamp: Date.now(),
+          rideId: null,
+        };
+
+        await redisClient.set(
+          `driver:${driverId}:location`,
+          JSON.stringify(locationData),
+          { EX: 3600 }
+        );
+      }
+
+      // Get updated status
+      const driverStatus = await this.getDriverStatus(driverId);
+
+      this.logger.info("✅ Driver reset to available successfully", {
+        correlationId,
+        driverId,
+        driverStatus,
+      });
+
+      return {
+        success: true,
+        message: `Driver ${driverId} reset to available state`,
+        driverStatus,
+      };
+    } catch (error) {
+      this.logger.error("❌ Failed to reset driver", {
+        correlationId,
+        driverId,
+        error: error.message,
+      });
+
+      return {
+        success: false,
+        message: `Failed to reset driver ${driverId}: ${error.message}`,
+        driverStatus: null,
+      };
+    }
+  }
+
+  /**
+   * Clear all driver assignments (useful for testing)
+   */
+  async clearAllDriverRides(): Promise<{
+    success: boolean;
+    message: string;
+    clearedDrivers: number[];
+  }> {
+    const correlationId = randomUUID();
+
+    this.logger.info("🧹 Clearing all driver ride assignments", {
+      correlationId,
+    });
+
+    try {
+      // Get all driver ride keys
+      const driverRideKeys = await redisClient.keys("driver:*:ride");
+      const clearedDrivers: number[] = [];
+
+      for (const key of driverRideKeys) {
+        const driverIdMatch = key.match(/driver:(\d+):ride/);
+        if (driverIdMatch) {
+          const driverId = parseInt(driverIdMatch[1], 10);
+          await this.clearDriverRide(driverId);
+          clearedDrivers.push(driverId);
+        }
+      }
+
+      this.logger.info("✅ All driver rides cleared", {
+        correlationId,
+        clearedDrivers,
+        count: clearedDrivers.length,
+      });
+
+      return {
+        success: true,
+        message: `Cleared ${clearedDrivers.length} driver assignments`,
+        clearedDrivers,
+      };
+    } catch (error) {
+      this.logger.error("❌ Failed to clear all driver rides", {
+        correlationId,
+        error: error.message,
+      });
+
+      return {
+        success: false,
+        message: `Failed to clear driver rides: ${error.message}`,
+        clearedDrivers: [],
+      };
+    }
+  }
 }
