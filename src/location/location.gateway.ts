@@ -1409,36 +1409,61 @@ export class LocationGateway
     const user = client.data.user as AuthenticatedUser;
     const driverId = parseInt(user.userId);
 
+    this.logger.log(`[RIDE START] Driver ${driverId} attempting to start ride ${data.rideId}`);
+
+    // Validate input
+    if (!data.rideId || isNaN(Number(data.rideId))) {
+      this.logger.error(`[RIDE START] Invalid rideId: ${data.rideId}`);
+      throw new WsException("Valid ride ID is required");
+    }
+
+    const rideId = Number(data.rideId);
+
     try {
-      // Update ride status in database (you'll need to inject RidesService or create a method)
-      // For now, we'll just update Redis and notify
-      await redisClient.set(`ride:${data.rideId}:status`, "in_progress", {
-        EX: 3600,
-      });
-      await redisClient.set(
-        `ride:${data.rideId}:started_at`,
-        Date.now().toString(),
-        { EX: 3600 }
-      );
+      // Use the proper service method that handles database updates, validation, and notifications
+      const updatedRide = await this.ridesService.startRide(rideId, driverId);
 
-      // Notify client that ride has started
-      this.server.to(`ride:${data.rideId}:client`).emit("ride:started", {
-        rideId: data.rideId,
+      this.logger.log(`[RIDE START] Ride ${rideId} successfully started by driver ${driverId}`, {
+        rideId: updatedRide.id,
+        status: updatedRide.status,
+        startedAt: updatedRide.started_at,
+        driverId: updatedRide.driver?.id,
+        clientId: updatedRide.client?.id,
+      });
+
+      // Additional real-time notification to ride room (supplement to service notifications)
+      this.server.to(`ride:${rideId}`).emit("ride:status:update", {
+        rideId: rideId,
+        status: updatedRide.status,
+        startedAt: updatedRide.started_at,
         driverId: driverId,
-        startedAt: new Date().toISOString(),
-        message: "Your ride has started!",
+        timestamp: new Date().toISOString(),
+        message: "Ride has started!",
       });
-
-      this.logger.log(`Ride ${data.rideId} started by driver ${driverId}`);
 
       return {
         success: true,
-        message: "Ride started",
-        rideId: data.rideId,
+        message: "Ride started successfully",
+        rideId: rideId,
+        status: updatedRide.status,
+        startedAt: updatedRide.started_at,
       };
     } catch (error) {
-      this.logger.error(`Failed to start ride: ${error.message}`);
-      throw new WsException("Failed to start ride");
+      this.logger.error(`[RIDE START] Failed to start ride ${rideId} for driver ${driverId}:`, {
+        error: error.message,
+        stack: error.stack,
+      });
+
+      // Re-throw with appropriate WebSocket exception
+      if (error.message.includes("not found")) {
+        throw new WsException("Ride not found");
+      } else if (error.message.includes("not assigned")) {
+        throw new WsException("You are not authorized to start this ride");
+      } else if (error.message.includes("cannot be started")) {
+        throw new WsException("Ride is not in the correct state to be started");
+      } else {
+        throw new WsException("Failed to start ride");
+      }
     }
   }
 

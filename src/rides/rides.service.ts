@@ -2912,11 +2912,29 @@ export class RidesService {
 
       // Notify client
       if (ride.client?.id) {
-        this.socketServer.emit(`rideStarted:${ride.client.id}`, {
-          rideId: ride.id,
-          startedAt: ride.started_at,
-          correlationId,
-        });
+        try {
+          const socketServer = this.socketServer || getSocketInstance();
+          if (socketServer) {
+            socketServer.emit(`rideStarted:${ride.client.id}`, {
+              rideId: ride.id,
+              startedAt: ride.started_at,
+              correlationId,
+            });
+          } else {
+            this.logger.warn("Socket server not available for notification", {
+              correlationId,
+              rideId: ride.id,
+              clientId: ride.client.id,
+            });
+          }
+        } catch (socketError) {
+          this.logger.error("Failed to send socket notification", {
+            correlationId,
+            rideId: ride.id,
+            clientId: ride.client.id,
+            error: socketError.message,
+          });
+        }
       }
 
       this.logger.info("Ride started successfully", {
@@ -3022,12 +3040,30 @@ export class RidesService {
 
       // Notify client
       if (ride.client?.id) {
-        this.socketServer.emit(`rideCompleted:${ride.client.id}`, {
-          rideId: ride.id,
-          completedAt: ride.completed_at,
-          finalFare: ride.final_fare || ride.estimated_fare,
-          correlationId,
-        });
+        try {
+          const socketServer = this.socketServer || getSocketInstance();
+          if (socketServer) {
+            socketServer.emit(`rideCompleted:${ride.client.id}`, {
+              rideId: ride.id,
+              completedAt: ride.completed_at,
+              finalFare: ride.final_fare || ride.estimated_fare,
+              correlationId,
+            });
+          } else {
+            this.logger.warn("Socket server not available for completion notification", {
+              correlationId,
+              rideId: ride.id,
+              clientId: ride.client.id,
+            });
+          }
+        } catch (socketError) {
+          this.logger.error("Failed to send completion notification", {
+            correlationId,
+            rideId: ride.id,
+            clientId: ride.client.id,
+            error: socketError.message,
+          });
+        }
       }
 
       this.logger.info("Ride completed successfully", {
@@ -3131,13 +3167,31 @@ export class RidesService {
       const notifyUserId =
         role === "driver" ? ride.client?.id : ride.driver?.id;
       if (notifyUserId) {
-        this.socketServer.emit(`rideCancelled:${notifyUserId}`, {
-          rideId: ride.id,
-          cancelledBy: role,
-          reason: ride.cancellation_reason,
-          cancelledAt: ride.cancelled_at,
-          correlationId,
-        });
+        try {
+          const socketServer = this.socketServer || getSocketInstance();
+          if (socketServer) {
+            socketServer.emit(`rideCancelled:${notifyUserId}`, {
+              rideId: ride.id,
+              cancelledBy: role,
+              reason: ride.cancellation_reason,
+              cancelledAt: ride.cancelled_at,
+              correlationId,
+            });
+          } else {
+            this.logger.warn("Socket server not available for cancellation notification", {
+              correlationId,
+              rideId: ride.id,
+              notifyUserId,
+            });
+          }
+        } catch (socketError) {
+          this.logger.error("Failed to send cancellation notification", {
+            correlationId,
+            rideId: ride.id,
+            notifyUserId,
+            error: socketError.message,
+          });
+        }
       }
 
       this.logger.info("Ride cancelled successfully", {
@@ -3609,10 +3663,27 @@ export class RidesService {
     const updatedRide = await this.rideRepository.save(ride);
 
     // Notify the client
-    this.socketServer.emit(`rideReassigned:${ride.client.id}`, {
-      rideId: ride.id,
-      newDriverId: newDriver.id,
-    });
+    try {
+      const socketServer = this.socketServer || getSocketInstance();
+      if (socketServer) {
+        socketServer.emit(`rideReassigned:${ride.client.id}`, {
+          rideId: ride.id,
+          newDriverId: newDriver.id,
+        });
+      } else {
+        this.logger.warn("Socket server not available for reassignment notification", {
+          rideId: ride.id,
+          clientId: ride.client.id,
+          newDriverId: newDriver.id,
+        });
+      }
+    } catch (socketError) {
+      this.logger.error("Failed to send reassignment notification", {
+        rideId: ride.id,
+        clientId: ride.client.id,
+        error: socketError.message,
+      });
+    }
 
     return updatedRide;
   }
@@ -3643,11 +3714,27 @@ export class RidesService {
       relations: ["client"],
     });
     if (ride) {
-      this.socketServer.emit(`driverLocationUpdated:${ride.client.id}`, {
-        rideId: ride.id,
-        lat,
-        lng,
-      });
+      try {
+        const socketServer = this.socketServer || getSocketInstance();
+        if (socketServer) {
+          socketServer.emit(`driverLocationUpdated:${ride.client.id}`, {
+            rideId: ride.id,
+            lat,
+            lng,
+          });
+        } else {
+          this.logger.warn("Socket server not available for location update notification", {
+            rideId: ride.id,
+            clientId: ride.client.id,
+          });
+        }
+      } catch (socketError) {
+        this.logger.error("Failed to send location update notification", {
+          rideId: ride.id,
+          clientId: ride.client.id,
+          error: socketError.message,
+        });
+      }
     }
   }
 
